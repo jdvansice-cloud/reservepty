@@ -12,7 +12,7 @@ import { cn, isDevMode, SECTIONS, SEAT_TIERS } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
-  Plane, Ship, Home, Helicopter, 
+  Plane, Ship, Home, Navigation2, 
   ChevronRight, ChevronLeft, Check, 
   Building2, Zap, AlertCircle
 } from 'lucide-react';
@@ -21,7 +21,7 @@ type Step = 'company' | 'sections' | 'seats' | 'payment';
 
 const SECTION_ICONS = {
   planes: Plane,
-  helicopters: Helicopter,
+  helicopters: Navigation2,
   residences: Home,
   boats: Ship,
 };

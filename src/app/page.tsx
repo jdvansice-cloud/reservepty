@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plane, Ship, Home, Helicopter, ChevronRight, Shield, Calendar, Users } from 'lucide-react';
+import { Plane, Ship, Home, Navigation2, ChevronRight, Shield, Calendar, Users } from 'lucide-react';
 
 export default function LandingPage() {
   return (
@@ -112,7 +112,7 @@ export default function LandingPage() {
             {/* Helicopters */}
             <div className="group card-hover p-8 text-center">
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                <Helicopter className="w-8 h-8 text-emerald-400" />
+                <Navigation2 className="w-8 h-8 text-emerald-400" />
               </div>
               <h3 className="font-display text-xl font-semibold text-white mb-2">Helicopters</h3>
               <p className="text-muted text-sm">
