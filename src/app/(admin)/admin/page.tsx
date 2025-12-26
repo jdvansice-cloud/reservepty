@@ -19,6 +19,7 @@ import {
   Gift,
   Activity,
   Zap,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isDevMode } from '@/lib/utils';
