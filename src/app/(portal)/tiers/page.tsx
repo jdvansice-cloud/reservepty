@@ -22,8 +22,26 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+// Type definitions
+interface TierRules {
+  maxDaysPerMonth: number | null;
+  maxConsecutiveDays: number | null;
+  minLeadTimeHours: number;
+  requiresApproval: boolean;
+  canOverride: boolean;
+}
+
+interface Tier {
+  id: string;
+  name: string;
+  priority: number;
+  color: string;
+  memberCount: number;
+  rules: TierRules;
+}
+
 // Mock data
-const mockTiers = [
+const mockTiers: Tier[] = [
   {
     id: '1',
     name: 'Principals',
@@ -83,7 +101,7 @@ const DEFAULT_COLORS = [
 ];
 
 export default function TiersPage() {
-  const [tiers, setTiers] = useState(mockTiers);
+  const [tiers, setTiers] = useState<Tier[]>(mockTiers);
   const [showModal, setShowModal] = useState(false);
   const [editingTier, setEditingTier] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -113,7 +131,7 @@ export default function TiersPage() {
     setShowModal(true);
   };
 
-  const openEditModal = (tier: typeof mockTiers[0]) => {
+  const openEditModal = (tier: Tier) => {
     setEditingTier(tier.id);
     setForm({
       name: tier.name,
