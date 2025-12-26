@@ -342,7 +342,10 @@ export async function getAssetCountBySection(organizationId: string): Promise<Re
   };
 
   data?.forEach(asset => {
-    counts[asset.section]++;
+    const section = asset.section as AssetSection;
+    if (section in counts) {
+      counts[section]++;
+    }
   });
 
   return counts;

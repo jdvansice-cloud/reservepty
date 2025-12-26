@@ -313,7 +313,18 @@ export async function checkAvailability(
   const { data, error } = await query;
   if (error) throw error;
 
-  const conflicts = (data || []).map(r => ({
+  // Cast to proper type
+  interface ConflictRow {
+    id: string;
+    start_datetime: string;
+    end_datetime: string;
+    status: string;
+    user?: { first_name?: string | null; last_name?: string | null } | null;
+  }
+  
+  const rows = (data || []) as unknown as ConflictRow[];
+  
+  const conflicts = rows.map(r => ({
     id: r.id,
     start: new Date(r.start_datetime),
     end: new Date(r.end_datetime),
@@ -397,7 +408,7 @@ export async function getCalendarEvents(
   endDate: Date,
   section?: string
 ): Promise<CalendarEvent[]> {
-  let query = supabase
+  const query = supabase
     .from('reservations')
     .select(`
       id,
@@ -424,7 +435,20 @@ export async function getCalendarEvents(
   const { data, error } = await query;
   if (error) throw error;
 
-  let events = (data || []).map(r => ({
+  // Cast to proper type
+  interface CalendarRow {
+    id: string;
+    title: string | null;
+    start_datetime: string;
+    end_datetime: string;
+    status: string;
+    asset?: { id?: string; name?: string; section?: string } | null;
+    user?: { id?: string; first_name?: string | null; last_name?: string | null } | null;
+  }
+  
+  const rows = (data || []) as unknown as CalendarRow[];
+
+  let events = rows.map(r => ({
     id: r.id,
     title: r.title || r.asset?.name || 'Booking',
     start: new Date(r.start_datetime),
@@ -570,9 +594,13 @@ export async function getBookingCountBySection(
     boats: 0,
   };
 
-  data?.forEach(r => {
-    if (r.asset?.section) {
-      counts[r.asset.section] = (counts[r.asset.section] || 0) + 1;
+  // Cast data to proper type
+  const reservations = (data || []) as unknown as Array<{ asset?: { section?: string } }>;
+  
+  reservations.forEach(r => {
+    const section = r.asset?.section;
+    if (section && section in counts) {
+      counts[section] = (counts[section] || 0) + 1;
     }
   });
 
