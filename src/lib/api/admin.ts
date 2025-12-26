@@ -40,7 +40,7 @@ export async function checkPlatformAdmin(): Promise<PlatformAdminWithProfile | n
     .single();
 
   if (error) return null;
-  return data;
+  return data as unknown as PlatformAdminWithProfile;
 }
 
 /**
@@ -57,7 +57,7 @@ export async function getPlatformAdmins(): Promise<PlatformAdminWithProfile[]> {
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as unknown as PlatformAdminWithProfile[];
 }
 
 // ============================================================================
@@ -100,9 +100,14 @@ export async function getAllOrganizations(): Promise<OrganizationWithDetails[]> 
 
   if (error) throw error;
 
-  // Transform data to include owner and member count
-  return (data || []).map(org => {
-    const owner = org.members?.find((m: OrganizationMember & { profile?: Profile }) => m.role === 'owner');
+  // Cast and transform data to include owner and member count
+  const orgs = (data || []) as unknown as Array<Organization & { 
+    subscription?: Array<Subscription & { entitlements?: Entitlement[] }>;
+    members?: Array<OrganizationMember & { profile?: Profile }>;
+  }>;
+  
+  return orgs.map(org => {
+    const owner = org.members?.find(m => m.role === 'owner');
     return {
       ...org,
       subscription: org.subscription?.[0] || undefined,
@@ -138,11 +143,17 @@ export async function getOrganizationDetails(id: string): Promise<OrganizationWi
     throw error;
   }
 
-  const owner = data.members?.find((m: OrganizationMember & { profile?: Profile }) => m.role === 'owner');
+  // Cast to proper type
+  const orgData = data as unknown as Organization & { 
+    subscription?: Array<Subscription & { entitlements?: Entitlement[] }>;
+    members?: Array<OrganizationMember & { profile?: Profile }>;
+  };
+
+  const owner = orgData.members?.find(m => m.role === 'owner');
   return {
-    ...data,
-    subscription: data.subscription?.[0] || undefined,
-    member_count: data.members?.length || 0,
+    ...orgData,
+    subscription: orgData.subscription?.[0] || undefined,
+    member_count: orgData.members?.length || 0,
     owner: owner?.profile,
   };
 }

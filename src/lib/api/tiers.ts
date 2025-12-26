@@ -44,7 +44,10 @@ export async function getTiers(
 
   if (error) throw error;
 
-  let tiers = (data || []).map(t => ({
+  // Cast to proper type
+  const tiersData = (data || []) as unknown as Array<Tier & { rules?: TierRule[] }>;
+  
+  let tiers: TierWithRules[] = tiersData.map(t => ({
     ...t,
     rules: t.rules?.[0] || undefined,
   }));
@@ -92,9 +95,12 @@ export async function getTier(id: string): Promise<TierWithRules | null> {
     throw error;
   }
 
+  // Cast to proper type
+  const tierData = data as unknown as Tier & { rules?: TierRule[] };
+  
   return {
-    ...data,
-    rules: data.rules?.[0] || undefined,
+    ...tierData,
+    rules: tierData.rules?.[0] || undefined,
   };
 }
 

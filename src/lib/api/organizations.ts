@@ -38,11 +38,13 @@ export async function getUserOrganizations(): Promise<OrganizationWithDetails[]>
 
   if (error) throw error;
   
-  // Flatten the nested structure
-  return data?.map(item => ({
+  // Flatten the nested structure with proper type handling
+  const items = (data || []) as unknown as Array<{ organization: OrganizationWithDetails & { subscription?: Array<Subscription & { entitlements?: Entitlement[] }> } }>;
+  
+  return items.map(item => ({
     ...item.organization,
     subscription: item.organization?.subscription?.[0] || undefined,
-  })) || [];
+  }));
 }
 
 /**
@@ -66,9 +68,11 @@ export async function getOrganization(id: string): Promise<OrganizationWithDetai
     throw error;
   }
 
+  const orgData = data as unknown as Organization & { subscription?: Array<Subscription & { entitlements?: Entitlement[] }> };
+  
   return {
-    ...data,
-    subscription: data?.subscription?.[0] || undefined,
+    ...orgData,
+    subscription: orgData?.subscription?.[0] || undefined,
   };
 }
 
@@ -257,7 +261,7 @@ export async function getOrganizationMembers(organizationId: string): Promise<Me
     .order('created_at', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as unknown as MemberWithProfile[];
 }
 
 /**
@@ -336,7 +340,7 @@ export async function getOrganizationInvitations(organizationId: string): Promis
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as unknown as InvitationWithInviter[];
 }
 
 /**
@@ -437,7 +441,7 @@ export async function acceptInvitation(token: string): Promise<{
 /**
  * Get organization subscription with entitlements
  */
-export async function getSubscription(organizationId: string): Promise<Subscription & { entitlements: Entitlement[] } | null> {
+export async function getSubscription(organizationId: string): Promise<(Subscription & { entitlements: Entitlement[] }) | null> {
   const { data, error } = await supabase
     .from('subscriptions')
     .select(`
@@ -452,7 +456,7 @@ export async function getSubscription(organizationId: string): Promise<Subscript
     throw error;
   }
 
-  return data;
+  return data as unknown as Subscription & { entitlements: Entitlement[] };
 }
 
 /**

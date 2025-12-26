@@ -117,7 +117,7 @@ export async function getReservations(
   const { data, error } = await query;
   if (error) throw error;
 
-  return data || [];
+  return (data || []) as unknown as ReservationWithDetails[];
 }
 
 /**
@@ -149,7 +149,7 @@ export async function getReservation(id: string): Promise<ReservationWithDetails
     throw error;
   }
 
-  return data;
+  return data as unknown as ReservationWithDetails;
 }
 
 /**
@@ -490,7 +490,7 @@ export async function getRecentReservations(
     .limit(limit);
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as unknown as ReservationWithDetails[];
 }
 
 // ============================================================================

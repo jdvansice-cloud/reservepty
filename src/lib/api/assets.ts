@@ -100,10 +100,13 @@ export async function getAssets(
 
   const { data, error } = await query;
   if (error) throw error;
+  
+  // Cast to proper type
+  const assets = (data || []) as unknown as AssetWithPhotos[];
 
   // Get booking counts if requested
-  if (options?.includeBookingCount && data) {
-    const assetIds = data.map(a => a.id);
+  if (options?.includeBookingCount && assets.length > 0) {
+    const assetIds = assets.map(a => a.id);
     const { data: bookings } = await supabase
       .from('reservations')
       .select('asset_id')
@@ -115,13 +118,13 @@ export async function getAssets(
       countMap.set(b.asset_id, (countMap.get(b.asset_id) || 0) + 1);
     });
 
-    return data.map(asset => ({
+    return assets.map(asset => ({
       ...asset,
       booking_count: countMap.get(asset.id) || 0,
     }));
   }
 
-  return data || [];
+  return assets;
 }
 
 /**
@@ -139,7 +142,7 @@ export async function getAsset(id: string): Promise<AssetWithPhotos | null> {
     throw error;
   }
 
-  return data;
+  return data as unknown as AssetWithPhotos;
 }
 
 /**
