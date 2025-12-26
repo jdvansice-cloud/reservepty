@@ -1,1 +1,5 @@
 [02:08:48.264] Server  LOG       Reload env: .env
+[02:09:39.055] Server  LOG       Reload env: .env.local
+[02:09:39.092] Server  ERROR   Error: write EPIPE
+[02:09:39.100] Server  ERROR   ⨯ "uncaughtException:" Error: write EPIPE
+[02:09:39.106] Server  ERROR   ⨯ "uncaughtException: " Error: write EPIPE
