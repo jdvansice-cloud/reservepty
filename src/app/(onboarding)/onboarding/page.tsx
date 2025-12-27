@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { 
   Plane, Ship, Home, Navigation2, 
   ChevronRight, ChevronLeft, Check, 
-  Building2, Zap, AlertCircle
+  Building2, Zap, AlertCircle, Loader2
 } from 'lucide-react';
 
 type Step = 'company' | 'sections' | 'seats' | 'payment';
@@ -28,8 +28,39 @@ const SECTION_ICONS = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, refreshProfile } = useAuth();
+  const { user, isLoading: authLoading, refreshProfile } = useAuth();
   const supabase = createClient();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login?redirect=/onboarding');
+    }
+  }, [user, authLoading, router]);
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-gold-500 mx-auto mb-4" />
+          <p className="text-muted">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render onboarding if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-gold-500 mx-auto mb-4" />
+          <p className="text-muted">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
   
   const [currentStep, setCurrentStep] = useState<Step>('company');
   const [isLoading, setIsLoading] = useState(false);
