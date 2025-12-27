@@ -125,6 +125,15 @@ export default function AssetsPage() {
     return asset.details?.capacity || asset.details?.passengerCapacity || asset.details?.maxGuests || asset.details?.cabins || '-';
   };
 
+  const getAssetSubtitle = (asset: Asset) => {
+    const parts = [];
+    if (asset.details?.manufacturer) parts.push(asset.details.manufacturer);
+    if (asset.details?.model) parts.push(asset.details.model);
+    if (asset.details?.tailNumber) parts.push(`(${asset.details.tailNumber})`);
+    if (asset.details?.year) parts.push(asset.details.year);
+    return parts.length > 0 ? parts.join(' ') : null;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -296,6 +305,11 @@ export default function AssetsPage() {
                   <h3 className="font-display font-semibold text-white text-lg group-hover:text-gold-500 transition-colors">
                     {asset.name}
                   </h3>
+                  {getAssetSubtitle(asset) && (
+                    <p className="text-sm text-gold-500/80 mt-0.5">
+                      {getAssetSubtitle(asset)}
+                    </p>
+                  )}
                   <p className="text-sm text-muted mt-1 line-clamp-2">
                     {asset.description || 'No description'}
                   </p>

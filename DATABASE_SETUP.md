@@ -49,49 +49,71 @@ This will populate:
 ## Step 3: Configure Storage Buckets
 
 1. Go to **Storage** in Supabase Dashboard
-2. Create two buckets:
+2. Click **New bucket** and create:
 
 ### Bucket: `organization-logos`
-- Public: Yes
+- Name: `organization-logos`
+- Public bucket: **Enabled** ✓
 - File size limit: 5MB
-- Allowed MIME types: `image/png`, `image/jpeg`, `image/webp`
+- Allowed MIME types: `image/png, image/jpeg, image/webp, image/gif`
 
 ### Bucket: `asset-photos`
-- Public: Yes
-- File size limit: 10MB
-- Allowed MIME types: `image/png`, `image/jpeg`, `image/webp`
+- Name: `asset-photos`
+- Public bucket: **Enabled** ✓
+- File size limit: 5MB
+- Allowed MIME types: `image/png, image/jpeg, image/webp, image/gif`
 
-### Storage Policies
+### Storage Policies (Required for uploads)
 
-For each bucket, add these policies in the **Policies** tab:
+After creating the buckets, run this SQL in the **SQL Editor**:
 
-**Select Policy (Public Read):**
 ```sql
-CREATE POLICY "Public read access"
+-- Allow public read access to asset photos
+CREATE POLICY "Public read access for asset-photos"
 ON storage.objects FOR SELECT
-USING (bucket_id IN ('organization-logos', 'asset-photos'));
-```
+USING (bucket_id = 'asset-photos');
 
-**Insert Policy (Authenticated Upload):**
-```sql
-CREATE POLICY "Authenticated upload"
+-- Allow public read access to organization logos
+CREATE POLICY "Public read access for organization-logos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'organization-logos');
+
+-- Allow authenticated users to upload to asset-photos
+CREATE POLICY "Authenticated users can upload asset photos"
 ON storage.objects FOR INSERT
-WITH CHECK (
-  auth.role() = 'authenticated' AND
-  bucket_id IN ('organization-logos', 'asset-photos')
-);
-```
+TO authenticated
+WITH CHECK (bucket_id = 'asset-photos');
 
-**Update/Delete Policy (Owner only):**
-```sql
-CREATE POLICY "Owner can modify"
+-- Allow authenticated users to upload to organization-logos
+CREATE POLICY "Authenticated users can upload organization logos"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'organization-logos');
+
+-- Allow users to update their own uploads
+CREATE POLICY "Users can update own asset photos"
 ON storage.objects FOR UPDATE
-USING (auth.uid()::text = (storage.foldername(name))[1]);
+TO authenticated
+USING (bucket_id = 'asset-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
 
-CREATE POLICY "Owner can delete"
+CREATE POLICY "Users can update own organization logos"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'organization-logos' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- Allow users to delete their own uploads
+CREATE POLICY "Users can delete own asset photos"
 ON storage.objects FOR DELETE
-USING (auth.uid()::text = (storage.foldername(name))[1]);
+TO authenticated
+USING (bucket_id = 'asset-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can delete own organization logos"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'organization-logos' AND auth.uid()::text = (storage.foldername(name))[1]);
 ```
+
+**Important:** Without these policies, photo uploads will fail with a permission error.
 
 ## Step 4: Configure Authentication
 

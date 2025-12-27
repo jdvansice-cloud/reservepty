@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
@@ -82,8 +82,10 @@ export default function NewAssetPage() {
   const router = useRouter();
   const { toast } = useToast();
   const { organization, session } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [formData, setFormData] = useState<FormData>({
     section: null,
@@ -97,18 +99,102 @@ export default function NewAssetPage() {
   };
 
   const handlePhotoUpload = () => {
-    // Mock photo upload - in production, this would use Supabase Storage
-    const mockPhotos = [
-      'https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800',
-      'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800',
-      'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800',
-      'https://images.unsplash.com/photo-1608236415053-3691791bbffe?w=800',
-    ];
-    setPhotos([...photos, mockPhotos[photos.length % mockPhotos.length]]);
-    toast({
-      title: 'Photo added',
-      description: 'Photo upload simulated (real upload coming soon)',
-    });
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!session?.access_token || !organization?.id) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to upload photos.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      for (const file of Array.from(files)) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          toast({
+            title: 'Invalid file type',
+            description: `${file.name} is not an image file.`,
+            variant: 'error',
+          });
+          continue;
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          toast({
+            title: 'File too large',
+            description: `${file.name} exceeds 5MB limit.`,
+            variant: 'error',
+          });
+          continue;
+        }
+
+        // Generate unique filename
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${organization.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        // Upload to Supabase Storage
+        const uploadResponse = await fetch(
+          `${baseUrl}/storage/v1/object/asset-photos/${fileName}`,
+          {
+            method: 'POST',
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': file.type,
+              'x-upsert': 'true',
+            },
+            body: file,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('Upload failed:', errorText);
+          toast({
+            title: 'Upload failed',
+            description: `Failed to upload ${file.name}. Please try again.`,
+            variant: 'error',
+          });
+          continue;
+        }
+
+        // Get public URL
+        const publicUrl = `${baseUrl}/storage/v1/object/public/asset-photos/${fileName}`;
+        setPhotos((prev) => [...prev, publicUrl]);
+
+        toast({
+          title: 'Photo uploaded',
+          description: `${file.name} uploaded successfully.`,
+        });
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload error',
+        description: error.message || 'An error occurred while uploading.',
+        variant: 'error',
+      });
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const removePhoto = (index: number) => {
@@ -505,11 +591,12 @@ export default function NewAssetPage() {
                     />
                   </div>
                   <div>
-                    <Label>Home Airport (ICAO)</Label>
+                    <Label>Home Airport (IATA)</Label>
                     <Input
-                      placeholder="e.g., KMIA"
+                      placeholder="e.g., MIA"
                       value={formData.homeAirport || ''}
-                      onChange={(e) => updateFormData('homeAirport', e.target.value)}
+                      onChange={(e) => updateFormData('homeAirport', e.target.value.toUpperCase())}
+                      maxLength={3}
                     />
                   </div>
                   <div className="col-span-2">
@@ -805,6 +892,16 @@ export default function NewAssetPage() {
                 </p>
               </div>
 
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
               {/* Photo Upload */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {photos.map((photo, index) => (
@@ -825,10 +922,20 @@ export default function NewAssetPage() {
                 ))}
                 <button
                   onClick={handlePhotoUpload}
-                  className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-gold-500 transition-colors flex flex-col items-center justify-center gap-2 text-muted hover:text-gold-500"
+                  disabled={isUploading}
+                  className="aspect-square rounded-xl border-2 border-dashed border-border hover:border-gold-500 transition-colors flex flex-col items-center justify-center gap-2 text-muted hover:text-gold-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Upload className="w-8 h-8" />
-                  <span className="text-sm font-medium">Upload Photo</span>
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-8 h-8 animate-spin" />
+                      <span className="text-sm font-medium">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8" />
+                      <span className="text-sm font-medium">Upload Photo</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -838,6 +945,9 @@ export default function NewAssetPage() {
                   <p className="text-muted">No photos added yet</p>
                   <p className="text-xs text-muted mt-1">
                     The first photo will be used as the primary image
+                  </p>
+                  <p className="text-xs text-muted mt-1">
+                    Max 5MB per image • JPG, PNG, GIF supported
                   </p>
                 </div>
               )}
