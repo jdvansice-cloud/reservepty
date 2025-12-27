@@ -28,7 +28,7 @@ const SECTION_ICONS = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, session, isLoading: authLoading, refreshProfile } = useAuth();
+  const { user, session, isLoading: authLoading } = useAuth();
   
   // Create Supabase client directly
   const supabase = createBrowserClient(
@@ -338,7 +338,9 @@ export default function OnboardingPage() {
       }
       console.log('Tiers created');
 
-      await refreshProfile();
+      // Skip refreshProfile since Supabase client is hanging
+      // The dashboard will load fresh data anyway
+      console.log('Redirecting to dashboard...');
 
       toast({
         title: 'Welcome to ReservePTY! 🎉',
@@ -346,7 +348,8 @@ export default function OnboardingPage() {
         variant: 'success',
       });
 
-      router.push('/dashboard');
+      // Use window.location for hard redirect to ensure fresh state
+      window.location.href = '/dashboard';
     } catch (error: any) {
       console.error('Onboarding error:', error);
       toast({
