@@ -122,7 +122,6 @@ function getSessionFromCookies(): { accessToken: string; refreshToken: string; u
     // Combine chunks in order
     const chunkKeys = Object.keys(authTokenParts).sort((a, b) => parseInt(a) - parseInt(b));
     if (chunkKeys.length === 0) {
-      console.log('No auth token cookies found');
       return null;
     }
     
@@ -131,11 +130,8 @@ function getSessionFromCookies(): { accessToken: string; refreshToken: string; u
       combinedValue += authTokenParts[key];
     }
     
-    console.log('Combined cookie value length:', combinedValue.length);
-    
     // URL decode
     const decoded = decodeURIComponent(combinedValue);
-    console.log('Decoded cookie starts with:', decoded.substring(0, 50));
     
     // Parse JSON
     let sessionData: any;
@@ -150,8 +146,6 @@ function getSessionFromCookies(): { accessToken: string; refreshToken: string; u
       sessionData = JSON.parse(decoded);
     }
     
-    console.log('Session data keys:', Object.keys(sessionData));
-    
     if (sessionData.access_token && sessionData.user) {
       return {
         accessToken: sessionData.access_token,
@@ -160,7 +154,6 @@ function getSessionFromCookies(): { accessToken: string; refreshToken: string; u
       };
     }
     
-    console.log('Session data missing access_token or user');
     return null;
   } catch (e) {
     console.error('Error parsing session from cookies:', e);
@@ -197,8 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
-    console.log('fetchProfileWithFetch called for user:', userId);
-    
     try {
       // Fetch profile
       const profileRes = await fetch(
@@ -211,11 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       );
       
-      console.log('Profile fetch status:', profileRes.status);
-      
       if (profileRes.ok) {
         const profiles = await profileRes.json();
-        console.log('Profiles:', profiles);
         if (profiles.length > 0) {
           setProfile(profiles[0]);
         }
@@ -232,11 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
-      console.log('Membership fetch status:', membershipRes.status);
-
       if (membershipRes.ok) {
         const membershipData = await membershipRes.json();
-        console.log('Memberships:', membershipData);
         
         if (membershipData && membershipData.length > 0) {
           const formattedMemberships = membershipData.map((m: any) => ({
@@ -257,7 +242,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           setMembership(currentMembership);
           setOrganization(currentMembership.organization);
-          console.log('Set organization:', currentMembership.organization);
         }
       }
     } catch (error) {
@@ -268,11 +252,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    console.log('AuthProvider useEffect running');
-    
     // Check for dev mode session first
     if (typeof window !== 'undefined' && localStorage.getItem('devModeActive') === 'true') {
-      console.log('Dev mode active');
       setUser(DEV_USER);
       setProfile(DEV_PROFILE);
       setOrganization(DEV_ORGANIZATION);
@@ -284,10 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Try to get session from cookies directly
     const cookieSession = getSessionFromCookies();
-    console.log('Cookie session:', cookieSession ? 'found' : 'not found');
     
     if (cookieSession) {
-      console.log('Found session in cookies, user:', cookieSession.user.email);
       setUser(cookieSession.user);
       setSession({ 
         access_token: cookieSession.accessToken,
@@ -295,7 +274,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } as Session);
       fetchProfileWithFetch(cookieSession.user.id, cookieSession.accessToken);
     } else {
-      console.log('No session found in cookies, setting loading to false');
       setIsLoading(false);
     }
   }, [fetchProfileWithFetch]);

@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn, SECTIONS, isDevMode } from '@/lib/utils';
+import { cn, SECTIONS } from '@/lib/utils';
+import { useAuth } from '@/components/auth/auth-provider';
 import {
   Plus,
   Search,
   Filter,
-  MoreVertical,
   Plane,
   Ship,
   Home,
@@ -19,9 +19,9 @@ import {
   Users,
   Calendar,
   Edit,
-  Trash2,
   Eye,
-  Sparkles,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
@@ -31,136 +31,107 @@ const SECTION_ICONS: Record<string, React.ElementType> = {
   boats: Ship,
 };
 
-// Mock data for development
-const mockAssets = [
-  {
-    id: '1',
-    name: 'Gulfstream G650',
-    section: 'planes',
-    description: 'Long-range business jet with exceptional performance',
-    primaryPhoto: 'https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800',
-    location: 'Miami International Airport (KMIA)',
-    capacity: 19,
-    status: 'available',
-    details: {
-      manufacturer: 'Gulfstream',
-      model: 'G650',
-      year: 2020,
-      range: '7,000 nm',
-      cruiseSpeed: '516 ktas',
-    },
-  },
-  {
-    id: '2',
-    name: 'Bell 429',
-    section: 'helicopters',
-    description: 'Light twin-engine helicopter for VIP transport',
-    primaryPhoto: 'https://images.unsplash.com/photo-1608236415053-3691791bbffe?w=800',
-    location: 'Downtown Manhattan Heliport',
-    capacity: 7,
-    status: 'available',
-    details: {
-      manufacturer: 'Bell',
-      model: '429',
-      year: 2021,
-    },
-  },
-  {
-    id: '3',
-    name: 'Miami Beach Villa',
-    section: 'residences',
-    description: 'Oceanfront luxury villa with private beach access',
-    primaryPhoto: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800',
-    location: 'Miami Beach, FL',
-    capacity: 12,
-    status: 'booked',
-    details: {
-      bedrooms: 6,
-      bathrooms: 8,
-      sqft: 12000,
-      amenities: ['Pool', 'Beach', 'Gym', 'Theater'],
-    },
-  },
-  {
-    id: '4',
-    name: 'Azimut 72',
-    section: 'boats',
-    description: 'Italian luxury motor yacht for Mediterranean cruising',
-    primaryPhoto: 'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800',
-    location: 'Port de Monaco',
-    capacity: 8,
-    status: 'available',
-    details: {
-      manufacturer: 'Azimut',
-      model: '72',
-      year: 2022,
-      length: '72 ft',
-    },
-  },
-  {
-    id: '5',
-    name: 'Citation Latitude',
-    section: 'planes',
-    description: 'Midsize business jet with stand-up cabin',
-    primaryPhoto: 'https://images.unsplash.com/photo-1474302770737-173ee21bab63?w=800',
-    location: 'Teterboro Airport (KTEB)',
-    capacity: 9,
-    status: 'maintenance',
-    details: {
-      manufacturer: 'Cessna',
-      model: 'Citation Latitude',
-      year: 2019,
-    },
-  },
-  {
-    id: '6',
-    name: 'Aspen Mountain Lodge',
-    section: 'residences',
-    description: 'Ski-in/ski-out luxury chalet with stunning views',
-    primaryPhoto: 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=800',
-    location: 'Aspen, CO',
-    capacity: 16,
-    status: 'available',
-    details: {
-      bedrooms: 8,
-      bathrooms: 10,
-      sqft: 15000,
-      amenities: ['Hot Tub', 'Wine Cellar', 'Home Theater'],
-    },
-  },
-];
+interface Asset {
+  id: string;
+  name: string;
+  section: string;
+  description: string | null;
+  primary_photo_url: string | null;
+  details: {
+    location?: string;
+    capacity?: number;
+    manufacturer?: string;
+    model?: string;
+    [key: string]: any;
+  };
+  is_active: boolean;
+  current_location: {
+    name?: string;
+    [key: string]: any;
+  } | null;
+}
 
 export default function AssetsPage() {
   const searchParams = useSearchParams();
   const initialSection = searchParams.get('section') || 'all';
+  const { organization, session } = useAuth();
   
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState(initialSection);
-  const [showActions, setShowActions] = useState<string | null>(null);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAssets = async () => {
+      if (!organization?.id || !session?.access_token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        const response = await fetch(
+          `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&is_active=eq.true&select=*&order=created_at.desc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch assets');
+        }
+
+        const data = await response.json();
+        setAssets(data);
+      } catch (err: any) {
+        console.error('Error fetching assets:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAssets();
+  }, [organization?.id, session?.access_token]);
 
   const filteredAssets = useMemo(() => {
-    return mockAssets.filter((asset) => {
+    return assets.filter((asset) => {
       const matchesSection = activeSection === 'all' || asset.section === activeSection;
       const matchesSearch =
         asset.name.toLowerCase().includes(search.toLowerCase()) ||
-        asset.description.toLowerCase().includes(search.toLowerCase()) ||
-        asset.location.toLowerCase().includes(search.toLowerCase());
+        (asset.description || '').toLowerCase().includes(search.toLowerCase()) ||
+        (asset.details?.location || '').toLowerCase().includes(search.toLowerCase());
       return matchesSection && matchesSearch;
     });
-  }, [activeSection, search]);
+  }, [assets, activeSection, search]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'available':
-        return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-      case 'booked':
-        return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
-      case 'maintenance':
-        return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
-      default:
-        return 'text-muted bg-muted/10 border-border';
-    }
+  const getStatusColor = (isActive: boolean) => {
+    return isActive
+      ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+      : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
   };
+
+  const getAssetLocation = (asset: Asset) => {
+    return asset.current_location?.name || asset.details?.location || asset.details?.homeAirport || asset.details?.homePort || asset.details?.city || 'Location not set';
+  };
+
+  const getAssetCapacity = (asset: Asset) => {
+    return asset.details?.capacity || asset.details?.passengerCapacity || asset.details?.maxGuests || asset.details?.cabins || '-';
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -170,21 +141,23 @@ export default function AssetsPage() {
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Assets</h1>
           <p className="text-muted mt-1">Manage your fleet and properties</p>
         </div>
-        <div className="flex items-center gap-3">
-          {isDevMode() && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-sm font-medium">Demo</span>
-            </div>
-          )}
-          <Link href="/assets/new">
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Asset
-            </Button>
-          </Link>
-        </div>
+        <Link href="/assets/new">
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Asset
+          </Button>
+        </Link>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-500/20 bg-red-500/10">
+          <CardContent className="py-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <p className="text-red-400">{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -262,17 +235,23 @@ export default function AssetsPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAssets.map((asset) => {
-            const Icon = SECTION_ICONS[asset.section];
+            const Icon = SECTION_ICONS[asset.section] || Plane;
             const sectionInfo = SECTIONS[asset.section as keyof typeof SECTIONS];
             return (
               <Card key={asset.id} className="card-hover overflow-hidden group">
                 {/* Image */}
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
-                    src={asset.primaryPhoto}
-                    alt={asset.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
+                <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+                  {asset.primary_photo_url ? (
+                    <img
+                      src={asset.primary_photo_url}
+                      alt={asset.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Icon className="w-16 h-16 text-muted" />
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent" />
                   
                   {/* Section Badge */}
@@ -291,10 +270,10 @@ export default function AssetsPage() {
                   <div
                     className={cn(
                       'absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-medium border capitalize',
-                      getStatusColor(asset.status)
+                      getStatusColor(asset.is_active)
                     )}
                   >
-                    {asset.status}
+                    {asset.is_active ? 'Active' : 'Inactive'}
                   </div>
 
                   {/* Actions */}
@@ -318,17 +297,17 @@ export default function AssetsPage() {
                     {asset.name}
                   </h3>
                   <p className="text-sm text-muted mt-1 line-clamp-2">
-                    {asset.description}
+                    {asset.description || 'No description'}
                   </p>
 
                   <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-sm text-muted">
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-4 h-4" />
-                      <span className="truncate max-w-[120px]">{asset.location}</span>
+                      <span className="truncate max-w-[120px]">{getAssetLocation(asset)}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4" />
-                      <span>{asset.capacity}</span>
+                      <span>{getAssetCapacity(asset)}</span>
                     </div>
                   </div>
 

@@ -116,11 +116,6 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = async () => {
-    console.log('handleComplete called');
-    console.log('User:', user);
-    console.log('Session:', session);
-    console.log('Selected sections:', selectedSections);
-    
     if (!user) {
       toast({
         title: 'Not authenticated',
@@ -140,28 +135,15 @@ export default function OnboardingPage() {
     }
 
     setIsLoading(true);
-    console.log('Starting organization creation...');
 
     try {
-      // Get access token from session context
       const accessToken = session?.access_token;
-      
-      console.log('Access token available:', !!accessToken);
       
       if (!accessToken) {
         throw new Error('No access token available');
       }
 
-      // Create organization using direct fetch
-      const insertPayload = {
-        legal_name: companyData.legalName,
-        commercial_name: companyData.commercialName || null,
-        ruc: companyData.ruc || null,
-        dv: companyData.dv || null,
-        billing_email: companyData.billingEmail || user.email,
-      };
-      console.log('Insert payload:', insertPayload);
-      
+      // Create organization
       const orgResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/organizations`,
         {
@@ -172,24 +154,25 @@ export default function OnboardingPage() {
             'Authorization': `Bearer ${accessToken}`,
             'Prefer': 'return=representation',
           },
-          body: JSON.stringify(insertPayload),
+          body: JSON.stringify({
+            legal_name: companyData.legalName,
+            commercial_name: companyData.commercialName || null,
+            ruc: companyData.ruc || null,
+            dv: companyData.dv || null,
+            billing_email: companyData.billingEmail || user.email,
+          }),
         }
       );
       
-      console.log('Org response status:', orgResponse.status);
-      
       if (!orgResponse.ok) {
         const errorText = await orgResponse.text();
-        console.error('Org creation failed:', errorText);
         throw new Error(errorText);
       }
       
       const orgArray = await orgResponse.json();
       const org = orgArray[0];
-      console.log('Organization created:', org);
 
       // Create organization member (owner)
-      console.log('Creating organization member...');
       const memberResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/organization_members`,
         {
@@ -209,17 +192,14 @@ export default function OnboardingPage() {
       
       if (!memberResponse.ok) {
         const errorText = await memberResponse.text();
-        console.error('Member creation failed:', errorText);
         throw new Error(errorText);
       }
-      console.log('Member created');
 
       // Calculate trial end date (14 days from now)
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
       // Create subscription with trial status
-      console.log('Creating subscription...');
       const subResponse = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/subscriptions`,
         {
@@ -244,16 +224,13 @@ export default function OnboardingPage() {
 
       if (!subResponse.ok) {
         const errorText = await subResponse.text();
-        console.error('Subscription creation failed:', errorText);
         throw new Error(errorText);
       }
       
       const subArray = await subResponse.json();
       const sub = subArray[0];
-      console.log('Subscription created:', sub);
 
       // Create entitlements for selected sections
-      console.log('Creating entitlements...');
       const entitlements = selectedSections.map((section) => ({
         subscription_id: sub.id,
         section,
@@ -275,13 +252,10 @@ export default function OnboardingPage() {
 
       if (!entResponse.ok) {
         const errorText = await entResponse.text();
-        console.error('Entitlements creation failed:', errorText);
         throw new Error(errorText);
       }
-      console.log('Entitlements created');
 
       // Create default tiers
-      console.log('Creating tiers...');
       const defaultTiers = [
         { name: 'Principals', priority: 1, color: '#c8b273' },
         { name: 'Family', priority: 2, color: '#22c55e' },
@@ -310,7 +284,6 @@ export default function OnboardingPage() {
 
         if (!tierResponse.ok) {
           const errorText = await tierResponse.text();
-          console.error('Tier creation failed:', errorText);
           throw new Error(errorText);
         }
         
@@ -336,11 +309,6 @@ export default function OnboardingPage() {
           }
         );
       }
-      console.log('Tiers created');
-
-      // Skip refreshProfile since Supabase client is hanging
-      // The dashboard will load fresh data anyway
-      console.log('Redirecting to dashboard...');
 
       toast({
         title: 'Welcome to ReservePTY! 🎉',
@@ -348,7 +316,6 @@ export default function OnboardingPage() {
         variant: 'success',
       });
 
-      // Use window.location for hard redirect to ensure fresh state
       window.location.href = '/dashboard';
     } catch (error: any) {
       console.error('Onboarding error:', error);

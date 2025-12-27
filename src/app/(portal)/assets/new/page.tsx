@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/components/auth/auth-provider';
 import { cn, SECTIONS } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -80,6 +81,7 @@ const AMENITIES = [
 export default function NewAssetPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { organization, session } = useAuth();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -99,11 +101,13 @@ export default function NewAssetPage() {
     const mockPhotos = [
       'https://images.unsplash.com/photo-1540962351504-03099e0a754b?w=800',
       'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800',
+      'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?w=800',
+      'https://images.unsplash.com/photo-1608236415053-3691791bbffe?w=800',
     ];
-    setPhotos([...photos, mockPhotos[photos.length % 2]]);
+    setPhotos([...photos, mockPhotos[photos.length % mockPhotos.length]]);
     toast({
       title: 'Photo added',
-      description: 'Demo: Photo upload simulated',
+      description: 'Photo upload simulated (real upload coming soon)',
     });
   };
 
@@ -120,17 +124,148 @@ export default function NewAssetPage() {
     }
   };
 
+  const buildDetailsObject = () => {
+    const details: Record<string, any> = {};
+    
+    switch (formData.section) {
+      case 'planes':
+        if (formData.manufacturer) details.manufacturer = formData.manufacturer;
+        if (formData.model) details.model = formData.model;
+        if (formData.year) details.year = parseInt(formData.year);
+        if (formData.tailNumber) details.tailNumber = formData.tailNumber;
+        if (formData.cruiseSpeed) details.cruiseSpeed = formData.cruiseSpeed;
+        if (formData.range) details.range = formData.range;
+        if (formData.passengerCapacity) details.passengerCapacity = parseInt(formData.passengerCapacity);
+        if (formData.homeAirport) details.homeAirport = formData.homeAirport;
+        if (formData.turnaroundMinutes) details.turnaroundMinutes = parseInt(formData.turnaroundMinutes);
+        break;
+      case 'helicopters':
+        if (formData.manufacturer) details.manufacturer = formData.manufacturer;
+        if (formData.model) details.model = formData.model;
+        if (formData.year) details.year = parseInt(formData.year);
+        if (formData.tailNumber) details.tailNumber = formData.tailNumber;
+        if (formData.passengerCapacity) details.passengerCapacity = parseInt(formData.passengerCapacity);
+        if (formData.rotorType) details.rotorType = formData.rotorType;
+        if (formData.maxAltitude) details.maxAltitude = formData.maxAltitude;
+        if (formData.homeHelipad) details.homeHelipad = formData.homeHelipad;
+        if (formData.turnaroundMinutes) details.turnaroundMinutes = parseInt(formData.turnaroundMinutes);
+        break;
+      case 'residences':
+        if (formData.address) details.address = formData.address;
+        if (formData.city) details.city = formData.city;
+        if (formData.country) details.country = formData.country;
+        if (formData.bedrooms) details.bedrooms = parseInt(formData.bedrooms);
+        if (formData.bathrooms) details.bathrooms = parseInt(formData.bathrooms);
+        if (formData.squareFeet) details.squareFeet = parseInt(formData.squareFeet);
+        if (formData.checkInTime) details.checkInTime = formData.checkInTime;
+        if (formData.checkOutTime) details.checkOutTime = formData.checkOutTime;
+        if (formData.cleaningBufferHours) details.cleaningBufferHours = parseInt(formData.cleaningBufferHours);
+        if (formData.maxGuests) details.maxGuests = parseInt(formData.maxGuests);
+        if (formData.amenities && formData.amenities.length > 0) details.amenities = formData.amenities;
+        break;
+      case 'boats':
+        if (formData.manufacturer) details.manufacturer = formData.manufacturer;
+        if (formData.model) details.model = formData.model;
+        if (formData.year) details.year = parseInt(formData.year);
+        if (formData.length) details.length = formData.length;
+        if (formData.beam) details.beam = formData.beam;
+        if (formData.draft) details.draft = formData.draft;
+        if (formData.cabins) details.cabins = parseInt(formData.cabins);
+        if (formData.passengerCapacity) details.passengerCapacity = parseInt(formData.passengerCapacity);
+        if (formData.crew) details.crew = parseInt(formData.crew);
+        if (formData.homePort) details.homePort = formData.homePort;
+        if (formData.fuelCapacity) details.fuelCapacity = formData.fuelCapacity;
+        break;
+    }
+    
+    return details;
+  };
+
   const handleSubmit = async () => {
+    if (!organization?.id || !session?.access_token) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create an asset.',
+        variant: 'error',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
     
-    toast({
-      title: 'Asset created successfully',
-      description: `${formData.name} has been added to your ${formData.section}.`,
-    });
-    
-    router.push('/assets');
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const assetData = {
+        organization_id: organization.id,
+        section: formData.section,
+        name: formData.name,
+        description: formData.description || null,
+        primary_photo_url: photos.length > 0 ? photos[0] : null,
+        details: buildDetailsObject(),
+        is_active: true,
+      };
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/assets`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(assetData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const createdAsset = await response.json();
+
+      // If there are additional photos, create asset_photos entries
+      if (photos.length > 1) {
+        const photoEntries = photos.slice(1).map((url, index) => ({
+          asset_id: createdAsset[0].id,
+          url,
+          display_order: index + 1,
+        }));
+
+        await fetch(
+          `${baseUrl}/rest/v1/asset_photos`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify(photoEntries),
+          }
+        );
+      }
+
+      toast({
+        title: 'Asset created successfully',
+        description: `${formData.name} has been added to your ${SECTIONS[formData.section!]?.label.toLowerCase()}.`,
+      });
+      
+      router.push('/assets');
+    } catch (error: any) {
+      console.error('Error creating asset:', error);
+      toast({
+        title: 'Error creating asset',
+        description: error.message || 'An error occurred while creating the asset.',
+        variant: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const canProceed = () => {
@@ -228,25 +363,26 @@ export default function NewAssetPage() {
                         'p-6 rounded-xl border-2 text-left transition-all',
                         isSelected
                           ? 'border-gold-500 bg-gold-500/10'
-                          : 'border-border hover:border-gold-500/50 bg-surface'
+                          : 'border-border hover:border-gold-500/50 hover:bg-white/5'
                       )}
                     >
                       <div
                         className={cn(
                           'w-12 h-12 rounded-xl flex items-center justify-center mb-4',
-                          isSelected ? 'bg-gold-500/20' : 'bg-navy-800'
+                          isSelected ? 'bg-gold-500 text-navy-950' : 'bg-surface text-muted'
                         )}
-                        style={{
-                          backgroundColor: isSelected ? `${section.color}20` : undefined,
-                        }}
                       >
-                        <Icon
-                          className="w-6 h-6"
-                          style={{ color: isSelected ? section.color : undefined }}
-                        />
+                        <Icon className="w-6 h-6" />
                       </div>
-                      <h3 className="font-medium text-white">{section.label}</h3>
-                      <p className="text-sm text-muted mt-1">{section.description}</p>
+                      <h3 className="font-display font-semibold text-white">
+                        {section.label}
+                      </h3>
+                      <p className="text-sm text-muted mt-1">
+                        {key === 'planes' && 'Jets, turboprops, and propeller aircraft'}
+                        {key === 'helicopters' && 'Helicopters and rotorcraft'}
+                        {key === 'residences' && 'Homes, villas, and vacation properties'}
+                        {key === 'boats' && 'Yachts, boats, and watercraft'}
+                      </p>
                     </button>
                   );
                 })}
@@ -262,30 +398,34 @@ export default function NewAssetPage() {
                   Basic Information
                 </h2>
                 <p className="text-muted text-sm mt-1">
-                  Enter the core details for your {SECTIONS[formData.section!]?.label.toLowerCase()}
+                  Enter the basic details for your {SECTIONS[formData.section!]?.label.toLowerCase()}
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Asset Name</Label>
+                  <Label htmlFor="name">Asset Name *</Label>
                   <Input
                     id="name"
-                    placeholder={`e.g., ${formData.section === 'planes' ? 'Gulfstream G650' : formData.section === 'boats' ? 'Azimut 72' : formData.section === 'residences' ? 'Miami Beach Villa' : 'Bell 429'}`}
+                    placeholder={
+                      formData.section === 'planes' ? 'e.g., Gulfstream G650' :
+                      formData.section === 'helicopters' ? 'e.g., Bell 429' :
+                      formData.section === 'residences' ? 'e.g., Miami Beach Villa' :
+                      'e.g., Azimut 72'
+                    }
                     value={formData.name}
                     onChange={(e) => updateFormData('name', e.target.value)}
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description">Description *</Label>
                   <textarea
                     id="description"
                     rows={4}
                     placeholder="Describe your asset..."
                     value={formData.description}
                     onChange={(e) => updateFormData('description', e.target.value)}
-                    className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white placeholder:text-muted focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 resize-none"
+                    className="w-full px-4 py-3 rounded-lg bg-surface border border-border text-white placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 transition-colors resize-none"
                   />
                 </div>
               </div>
@@ -300,7 +440,7 @@ export default function NewAssetPage() {
                   {SECTIONS[formData.section!]?.label} Details
                 </h2>
                 <p className="text-muted text-sm mt-1">
-                  Add specific information for your {formData.section}
+                  Add specific details for your {SECTIONS[formData.section!]?.label.toLowerCase()}
                 </p>
               </div>
 
@@ -334,25 +474,9 @@ export default function NewAssetPage() {
                   <div>
                     <Label>Tail Number</Label>
                     <Input
-                      placeholder="e.g., N123AB"
+                      placeholder="e.g., N650GS"
                       value={formData.tailNumber || ''}
                       onChange={(e) => updateFormData('tailNumber', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Cruise Speed (ktas)</Label>
-                    <Input
-                      placeholder="e.g., 516"
-                      value={formData.cruiseSpeed || ''}
-                      onChange={(e) => updateFormData('cruiseSpeed', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Range (nm)</Label>
-                    <Input
-                      placeholder="e.g., 7000"
-                      value={formData.range || ''}
-                      onChange={(e) => updateFormData('range', e.target.value)}
                     />
                   </div>
                   <div>
@@ -362,6 +486,22 @@ export default function NewAssetPage() {
                       placeholder="e.g., 19"
                       value={formData.passengerCapacity || ''}
                       onChange={(e) => updateFormData('passengerCapacity', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Cruise Speed</Label>
+                    <Input
+                      placeholder="e.g., 516 ktas"
+                      value={formData.cruiseSpeed || ''}
+                      onChange={(e) => updateFormData('cruiseSpeed', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Range</Label>
+                    <Input
+                      placeholder="e.g., 7,000 nm"
+                      value={formData.range || ''}
+                      onChange={(e) => updateFormData('range', e.target.value)}
                     />
                   </div>
                   <div>
@@ -380,9 +520,6 @@ export default function NewAssetPage() {
                       value={formData.turnaroundMinutes || ''}
                       onChange={(e) => updateFormData('turnaroundMinutes', e.target.value)}
                     />
-                    <p className="text-xs text-muted mt-1">
-                      Buffer time required between bookings for preparation
-                    </p>
                   </div>
                 </div>
               )}
@@ -415,6 +552,14 @@ export default function NewAssetPage() {
                     />
                   </div>
                   <div>
+                    <Label>Tail Number</Label>
+                    <Input
+                      placeholder="e.g., N429BH"
+                      value={formData.tailNumber || ''}
+                      onChange={(e) => updateFormData('tailNumber', e.target.value)}
+                    />
+                  </div>
+                  <div>
                     <Label>Passenger Capacity</Label>
                     <Input
                       type="number"
@@ -426,12 +571,12 @@ export default function NewAssetPage() {
                   <div>
                     <Label>Home Helipad</Label>
                     <Input
-                      placeholder="e.g., Downtown Manhattan"
+                      placeholder="e.g., Downtown Manhattan Heliport"
                       value={formData.homeHelipad || ''}
                       onChange={(e) => updateFormData('homeHelipad', e.target.value)}
                     />
                   </div>
-                  <div>
+                  <div className="col-span-2">
                     <Label>Turnaround Time (minutes)</Label>
                     <Input
                       type="number"
@@ -445,12 +590,12 @@ export default function NewAssetPage() {
 
               {/* Residences Fields */}
               {formData.section === 'residences' && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <Label>Address</Label>
                       <Input
-                        placeholder="Street address"
+                        placeholder="e.g., 123 Ocean Drive"
                         value={formData.address || ''}
                         onChange={(e) => updateFormData('address', e.target.value)}
                       />
