@@ -30,6 +30,23 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, refreshProfile } = useAuth();
   const supabase = createClient();
+  
+  // ALL HOOKS MUST BE AT THE TOP - before any conditional returns
+  const [currentStep, setCurrentStep] = useState<Step>('company');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Form state
+  const [companyData, setCompanyData] = useState({
+    legalName: '',
+    commercialName: '',
+    ruc: '',
+    dv: '',
+    billingEmail: '',
+  });
+  
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
+  const [selectedSeats, setSelectedSeats] = useState<number>(10);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -37,6 +54,15 @@ export default function OnboardingPage() {
       router.push('/login?redirect=/onboarding');
     }
   }, [user, authLoading, router]);
+
+  const steps: { id: Step; label: string }[] = [
+    { id: 'company', label: 'Company Info' },
+    { id: 'sections', label: 'Select Sections' },
+    { id: 'seats', label: 'Choose Plan' },
+    { id: 'payment', label: 'Payment' },
+  ];
+
+  const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   // Show loading while checking auth
   if (authLoading) {
@@ -61,31 +87,6 @@ export default function OnboardingPage() {
       </div>
     );
   }
-  
-  const [currentStep, setCurrentStep] = useState<Step>('company');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Form state
-  const [companyData, setCompanyData] = useState({
-    legalName: '',
-    commercialName: '',
-    ruc: '',
-    dv: '',
-    billingEmail: '',
-  });
-  
-  const [selectedSections, setSelectedSections] = useState<string[]>([]);
-  const [selectedSeats, setSelectedSeats] = useState<number>(10);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
-
-  const steps: { id: Step; label: string }[] = [
-    { id: 'company', label: 'Company Info' },
-    { id: 'sections', label: 'Select Sections' },
-    { id: 'seats', label: 'Choose Plan' },
-    { id: 'payment', label: 'Payment' },
-  ];
-
-  const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
   const handleNext = () => {
     const nextIndex = currentStepIndex + 1;
