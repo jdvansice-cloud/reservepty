@@ -111,6 +111,10 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = async () => {
+    console.log('handleComplete called');
+    console.log('User:', user);
+    console.log('Selected sections:', selectedSections);
+    
     if (!user) {
       toast({
         title: 'Not authenticated',
@@ -130,9 +134,11 @@ export default function OnboardingPage() {
     }
 
     setIsLoading(true);
+    console.log('Starting organization creation...');
 
     try {
       // Create organization
+      console.log('Creating organization with data:', companyData);
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -145,9 +151,14 @@ export default function OnboardingPage() {
         .select()
         .single();
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error('Organization creation error:', orgError);
+        throw orgError;
+      }
+      console.log('Organization created:', org);
 
       // Create organization member (owner)
+      console.log('Creating organization member...');
       const { error: memberError } = await supabase
         .from('organization_members')
         .insert({
@@ -156,13 +167,18 @@ export default function OnboardingPage() {
           role: 'owner',
         });
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Member creation error:', memberError);
+        throw memberError;
+      }
+      console.log('Member created');
 
       // Calculate trial end date (14 days from now)
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
       // Create subscription with trial status
+      console.log('Creating subscription...');
       const { data: sub, error: subError } = await supabase
         .from('subscriptions')
         .insert({
@@ -177,9 +193,14 @@ export default function OnboardingPage() {
         .select()
         .single();
 
-      if (subError) throw subError;
+      if (subError) {
+        console.error('Subscription creation error:', subError);
+        throw subError;
+      }
+      console.log('Subscription created:', sub);
 
       // Create entitlements for selected sections
+      console.log('Creating entitlements...');
       const entitlements = selectedSections.map((section) => ({
         subscription_id: sub.id,
         section,
@@ -190,9 +211,14 @@ export default function OnboardingPage() {
         .from('entitlements')
         .insert(entitlements);
 
-      if (entError) throw entError;
+      if (entError) {
+        console.error('Entitlements creation error:', entError);
+        throw entError;
+      }
+      console.log('Entitlements created');
 
       // Create default tiers
+      console.log('Creating tiers...');
       const defaultTiers = [
         { name: 'Principals', priority: 1, color: '#c8b273' },
         { name: 'Family', priority: 2, color: '#22c55e' },
