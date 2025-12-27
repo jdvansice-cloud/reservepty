@@ -224,14 +224,6 @@ export default function OnboardingPage() {
               Reserve<span className="text-gold-500">PTY</span>
             </span>
           </Link>
-
-          {/* Dev mode indicator */}
-          {isDevMode() && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-sm font-medium">Dev Mode</span>
-            </div>
-          )}
         </div>
       </header>
 
