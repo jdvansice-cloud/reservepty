@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
 import { cn, SECTIONS, SEAT_TIERS } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
+import { createBrowserClient } from '@supabase/ssr';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
   Plane, Ship, Home, Navigation2, 
@@ -28,8 +28,13 @@ const SECTION_ICONS = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, refreshProfile } = useAuth();
-  const supabase = createClient();
+  const { user, session, isLoading: authLoading, refreshProfile } = useAuth();
+  
+  // Create Supabase client directly
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   
   // ALL HOOKS MUST BE AT THE TOP - before any conditional returns
   const [currentStep, setCurrentStep] = useState<Step>('company');
@@ -113,17 +118,8 @@ export default function OnboardingPage() {
   const handleComplete = async () => {
     console.log('handleComplete called');
     console.log('User:', user);
+    console.log('Session:', session);
     console.log('Selected sections:', selectedSections);
-    console.log('Supabase client:', supabase);
-    
-    // Test if supabase client works
-    console.log('Testing supabase connection...');
-    try {
-      const { data: testData, error: testError } = await supabase.auth.getSession();
-      console.log('Auth session test - data:', testData, 'error:', testError);
-    } catch (e) {
-      console.error('Auth session test failed:', e);
-    }
     
     if (!user) {
       toast({
@@ -147,10 +143,16 @@ export default function OnboardingPage() {
     console.log('Starting organization creation...');
 
     try {
-      // Create organization
-      console.log('Creating organization with data:', companyData);
-      console.log('About to call supabase.from("organizations").insert()...');
+      // Get access token from session context
+      const accessToken = session?.access_token;
       
+      console.log('Access token available:', !!accessToken);
+      
+      if (!accessToken) {
+        throw new Error('No access token available');
+      }
+
+      // Create organization using direct fetch
       const insertPayload = {
         legal_name: companyData.legalName,
         commercial_name: companyData.commercialName || null,
@@ -160,38 +162,55 @@ export default function OnboardingPage() {
       };
       console.log('Insert payload:', insertPayload);
       
-      // Try the insert
-      console.log('Calling insert now...');
-      const result = await supabase
-        .from('organizations')
-        .insert(insertPayload)
-        .select()
-        .single();
+      const orgResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/organizations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(insertPayload),
+        }
+      );
       
-      console.log('Full result:', result);
-      const { data: org, error: orgError } = result;
-
-      console.log('Organization insert result - data:', org, 'error:', orgError);
-
-      if (orgError) {
-        console.error('Organization creation error:', orgError);
-        throw orgError;
+      console.log('Org response status:', orgResponse.status);
+      
+      if (!orgResponse.ok) {
+        const errorText = await orgResponse.text();
+        console.error('Org creation failed:', errorText);
+        throw new Error(errorText);
       }
+      
+      const orgArray = await orgResponse.json();
+      const org = orgArray[0];
       console.log('Organization created:', org);
 
       // Create organization member (owner)
       console.log('Creating organization member...');
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: org.id,
-          user_id: user.id,
-          role: 'owner',
-        });
-
-      if (memberError) {
-        console.error('Member creation error:', memberError);
-        throw memberError;
+      const memberResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/organization_members`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            organization_id: org.id,
+            user_id: user.id,
+            role: 'owner',
+          }),
+        }
+      );
+      
+      if (!memberResponse.ok) {
+        const errorText = await memberResponse.text();
+        console.error('Member creation failed:', errorText);
+        throw new Error(errorText);
       }
       console.log('Member created');
 
@@ -201,24 +220,36 @@ export default function OnboardingPage() {
 
       // Create subscription with trial status
       console.log('Creating subscription...');
-      const { data: sub, error: subError } = await supabase
-        .from('subscriptions')
-        .insert({
-          organization_id: org.id,
-          status: 'trial',
-          billing_cycle: billingCycle,
-          seat_limit: selectedSeats,
-          trial_ends_at: trialEndsAt.toISOString(),
-          current_period_start: new Date().toISOString(),
-          current_period_end: trialEndsAt.toISOString(),
-        })
-        .select()
-        .single();
+      const subResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/subscriptions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify({
+            organization_id: org.id,
+            status: 'trial',
+            billing_cycle: billingCycle,
+            seat_limit: selectedSeats,
+            trial_ends_at: trialEndsAt.toISOString(),
+            current_period_start: new Date().toISOString(),
+            current_period_end: trialEndsAt.toISOString(),
+          }),
+        }
+      );
 
-      if (subError) {
-        console.error('Subscription creation error:', subError);
-        throw subError;
+      if (!subResponse.ok) {
+        const errorText = await subResponse.text();
+        console.error('Subscription creation failed:', errorText);
+        throw new Error(errorText);
       }
+      
+      const subArray = await subResponse.json();
+      const sub = subArray[0];
       console.log('Subscription created:', sub);
 
       // Create entitlements for selected sections
@@ -229,13 +260,23 @@ export default function OnboardingPage() {
         is_active: true,
       }));
 
-      const { error: entError } = await supabase
-        .from('entitlements')
-        .insert(entitlements);
+      const entResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/entitlements`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(entitlements),
+        }
+      );
 
-      if (entError) {
-        console.error('Entitlements creation error:', entError);
-        throw entError;
+      if (!entResponse.ok) {
+        const errorText = await entResponse.text();
+        console.error('Entitlements creation failed:', errorText);
+        throw new Error(errorText);
       }
       console.log('Entitlements created');
 
@@ -248,27 +289,54 @@ export default function OnboardingPage() {
       ];
 
       for (const tier of defaultTiers) {
-        const { data: tierData, error: tierError } = await supabase
-          .from('tiers')
-          .insert({
-            organization_id: org.id,
-            name: tier.name,
-            priority: tier.priority,
-            color: tier.color,
-          })
-          .select()
-          .single();
+        const tierResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/tiers`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+              'Authorization': `Bearer ${accessToken}`,
+              'Prefer': 'return=representation',
+            },
+            body: JSON.stringify({
+              organization_id: org.id,
+              name: tier.name,
+              priority: tier.priority,
+              color: tier.color,
+            }),
+          }
+        );
 
-        if (tierError) throw tierError;
+        if (!tierResponse.ok) {
+          const errorText = await tierResponse.text();
+          console.error('Tier creation failed:', errorText);
+          throw new Error(errorText);
+        }
+        
+        const tierArray = await tierResponse.json();
+        const tierData = tierArray[0];
 
         // Create tier rules
-        await supabase.from('tier_rules').insert({
-          tier_id: tierData.id,
-          requires_approval: tier.priority > 1,
-          max_days_per_month: tier.priority === 1 ? null : 30 - (tier.priority * 5),
-          min_lead_time_hours: tier.priority * 24,
-        });
+        await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/tier_rules`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              tier_id: tierData.id,
+              requires_approval: tier.priority > 1,
+              max_days_per_month: tier.priority === 1 ? null : 30 - (tier.priority * 5),
+              min_lead_time_hours: tier.priority * 24,
+            }),
+          }
+        );
       }
+      console.log('Tiers created');
 
       await refreshProfile();
 
