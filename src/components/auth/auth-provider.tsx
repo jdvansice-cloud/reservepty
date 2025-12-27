@@ -97,46 +97,71 @@ function getSessionFromCookies(): { accessToken: string; refreshToken: string; u
   
   try {
     const cookies = document.cookie.split(';');
-    let accessToken = '';
-    let refreshToken = '';
-    let userData: User | null = null;
+    
+    // Find all auth token cookie parts and combine them
+    const authTokenParts: { [key: string]: string } = {};
     
     for (const cookie of cookies) {
       const trimmed = cookie.trim();
       
-      // Look for auth token cookies (they may be chunked)
+      // Look for chunked auth token cookies (e.g., sb-xxx-auth-token.0, sb-xxx-auth-token.1)
       if (trimmed.includes('auth-token')) {
-        const [name, ...valueParts] = trimmed.split('=');
-        const value = valueParts.join('=');
-        
-        try {
-          const decoded = decodeURIComponent(value);
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex > -1) {
+          const name = trimmed.substring(0, eqIndex);
+          const value = trimmed.substring(eqIndex + 1);
           
-          // Handle base64 encoded cookies
-          if (decoded.startsWith('base64-')) {
-            const base64 = decoded.replace('base64-', '');
-            const json = atob(base64);
-            const parsed = JSON.parse(json);
-            
-            if (parsed.access_token) accessToken = parsed.access_token;
-            if (parsed.refresh_token) refreshToken = parsed.refresh_token;
-            if (parsed.user) userData = parsed.user;
-          } else {
-            // Try direct JSON parse
-            const parsed = JSON.parse(decoded);
-            if (parsed.access_token) accessToken = parsed.access_token;
-            if (parsed.refresh_token) refreshToken = parsed.refresh_token;
-            if (parsed.user) userData = parsed.user;
-          }
-        } catch (e) {
-          // Cookie might be split, continue
+          // Extract the chunk number if present
+          const chunkMatch = name.match(/auth-token\.?(\d*)$/);
+          const chunkNum = chunkMatch ? (chunkMatch[1] || '0') : '0';
+          authTokenParts[chunkNum] = value;
         }
       }
     }
     
-    if (accessToken && userData) {
-      return { accessToken, refreshToken, user: userData };
+    // Combine chunks in order
+    const chunkKeys = Object.keys(authTokenParts).sort((a, b) => parseInt(a) - parseInt(b));
+    if (chunkKeys.length === 0) {
+      console.log('No auth token cookies found');
+      return null;
     }
+    
+    let combinedValue = '';
+    for (const key of chunkKeys) {
+      combinedValue += authTokenParts[key];
+    }
+    
+    console.log('Combined cookie value length:', combinedValue.length);
+    
+    // URL decode
+    const decoded = decodeURIComponent(combinedValue);
+    console.log('Decoded cookie starts with:', decoded.substring(0, 50));
+    
+    // Parse JSON
+    let sessionData: any;
+    
+    if (decoded.startsWith('base64-')) {
+      // Handle base64 encoded
+      const base64 = decoded.replace('base64-', '');
+      const json = atob(base64);
+      sessionData = JSON.parse(json);
+    } else {
+      // Direct JSON
+      sessionData = JSON.parse(decoded);
+    }
+    
+    console.log('Session data keys:', Object.keys(sessionData));
+    
+    if (sessionData.access_token && sessionData.user) {
+      return {
+        accessToken: sessionData.access_token,
+        refreshToken: sessionData.refresh_token || '',
+        user: sessionData.user,
+      };
+    }
+    
+    console.log('Session data missing access_token or user');
+    return null;
   } catch (e) {
     console.error('Error parsing session from cookies:', e);
   }
