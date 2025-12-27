@@ -1,29 +1,26 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn, SECTIONS, formatDate, isDevMode } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/components/auth/auth-provider';
+import { cn, SECTIONS, formatDate } from '@/lib/utils';
 import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Filter,
   Plane,
   Ship,
   Home,
   X,
-  Clock,
-  MapPin,
-  Users,
-  Calendar as CalendarIcon,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   Loader2,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
@@ -39,67 +36,46 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-// Mock bookings
-const mockBookings = [
-  {
-    id: '1',
-    assetId: '1',
-    assetName: 'Gulfstream G650',
-    section: 'planes',
-    userName: 'John Smith',
-    startDate: new Date(2025, 0, 5, 10, 0),
-    endDate: new Date(2025, 0, 5, 16, 0),
-    status: 'approved',
-    route: 'KMIA → KJFK',
-  },
-  {
-    id: '2',
-    assetId: '3',
-    assetName: 'Miami Beach Villa',
-    section: 'residences',
-    userName: 'Sarah Johnson',
-    startDate: new Date(2025, 0, 10),
-    endDate: new Date(2025, 0, 15),
-    status: 'approved',
-  },
-  {
-    id: '3',
-    assetId: '4',
-    assetName: 'Azimut 72',
-    section: 'boats',
-    userName: 'Michael Chen',
-    startDate: new Date(2025, 0, 18),
-    endDate: new Date(2025, 0, 20),
-    status: 'pending',
-  },
-  {
-    id: '4',
-    assetId: '2',
-    assetName: 'Bell 429',
-    section: 'helicopters',
-    userName: 'Emma Williams',
-    startDate: new Date(2025, 0, 22, 14, 0),
-    endDate: new Date(2025, 0, 22, 18, 0),
-    status: 'approved',
-  },
-];
+interface Asset {
+  id: string;
+  name: string;
+  section: string;
+  details: any;
+}
 
-const mockAssets = [
-  { id: '1', name: 'Gulfstream G650', section: 'planes' },
-  { id: '2', name: 'Bell 429', section: 'helicopters' },
-  { id: '3', name: 'Miami Beach Villa', section: 'residences' },
-  { id: '4', name: 'Azimut 72', section: 'boats' },
-];
+interface Reservation {
+  id: string;
+  asset_id: string;
+  user_id: string;
+  title: string | null;
+  start_datetime: string;
+  end_datetime: string;
+  status: string;
+  notes: string | null;
+  guest_count: number | null;
+  asset?: Asset;
+  profile?: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+  };
+}
 
 export default function CalendarPage() {
   const searchParams = useSearchParams();
   const preselectedAsset = searchParams.get('asset');
+  const { toast } = useToast();
+  const { organization, session, user, profile } = useAuth();
   
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 0, 1)); // Jan 2025 for demo
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
   
   const [bookingForm, setBookingForm] = useState({
     assetId: preselectedAsset || '',
@@ -107,8 +83,15 @@ export default function CalendarPage() {
     endDate: '',
     startTime: '09:00',
     endTime: '17:00',
+    title: '',
     notes: '',
+    guestCount: '',
   });
+
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [conflicts, setConflicts] = useState<Reservation[]>([]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -117,6 +100,68 @@ export default function CalendarPage() {
   const lastDayOfMonth = new Date(year, month + 1, 0);
   const startingDayOfWeek = firstDayOfMonth.getDay();
   const daysInMonth = lastDayOfMonth.getDate();
+
+  // Fetch assets and reservations
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!organization?.id || !session?.access_token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        // Fetch assets
+        const assetsResponse = await fetch(
+          `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&is_active=eq.true&select=id,name,section,details`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (assetsResponse.ok) {
+          const assetsData = await assetsResponse.json();
+          setAssets(assetsData);
+        }
+
+        // Fetch reservations for current month (expanded range for multi-day bookings)
+        const startRange = new Date(year, month - 1, 1).toISOString();
+        const endRange = new Date(year, month + 2, 0).toISOString();
+
+        const reservationsResponse = await fetch(
+          `${baseUrl}/rest/v1/reservations?organization_id=eq.${organization.id}&start_datetime=gte.${startRange}&start_datetime=lte.${endRange}&select=*,asset:assets(id,name,section),profile:profiles(first_name,last_name,email)&order=start_datetime.asc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (reservationsResponse.ok) {
+          const reservationsData = await reservationsResponse.json();
+          // Handle Supabase join returning arrays
+          const formattedReservations = reservationsData.map((r: any) => ({
+            ...r,
+            asset: Array.isArray(r.asset) ? r.asset[0] : r.asset,
+            profile: Array.isArray(r.profile) ? r.profile[0] : r.profile,
+          }));
+          setReservations(formattedReservations);
+        }
+      } catch (error) {
+        console.error('Error fetching calendar data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [organization?.id, session?.access_token, year, month]);
 
   const calendarDays = useMemo(() => {
     const days = [];
@@ -143,17 +188,17 @@ export default function CalendarPage() {
     return days;
   }, [year, month, startingDayOfWeek, daysInMonth]);
 
-  const filteredBookings = useMemo(() => {
-    return mockBookings.filter((booking) => {
-      if (selectedSection && booking.section !== selectedSection) return false;
+  const filteredReservations = useMemo(() => {
+    return reservations.filter((reservation) => {
+      if (selectedSection && reservation.asset?.section !== selectedSection) return false;
       return true;
     });
-  }, [selectedSection]);
+  }, [reservations, selectedSection]);
 
   const getBookingsForDate = (date: Date) => {
-    return filteredBookings.filter((booking) => {
-      const bookingStart = new Date(booking.startDate);
-      const bookingEnd = new Date(booking.endDate);
+    return filteredReservations.filter((reservation) => {
+      const bookingStart = new Date(reservation.start_datetime);
+      const bookingEnd = new Date(reservation.end_datetime);
       const dayStart = new Date(date);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(date);
@@ -171,32 +216,307 @@ export default function CalendarPage() {
     setCurrentDate(new Date(year, month + 1, 1));
   };
 
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Check for conflicts when asset or dates change
+  useEffect(() => {
+    if (!bookingForm.assetId || !bookingForm.startDate) {
+      setConflicts([]);
+      return;
+    }
+
+    const startDate = new Date(bookingForm.startDate);
+    const endDate = bookingForm.endDate ? new Date(bookingForm.endDate) : startDate;
+    
+    // Find overlapping reservations for the same asset
+    const overlapping = reservations.filter((r) => {
+      if (r.asset_id !== bookingForm.assetId) return false;
+      if (r.status === 'rejected' || r.status === 'cancelled') return false;
+      
+      const rStart = new Date(r.start_datetime);
+      const rEnd = new Date(r.end_datetime);
+      
+      // Check overlap
+      return startDate <= rEnd && endDate >= rStart;
+    });
+
+    setConflicts(overlapping);
+  }, [bookingForm.assetId, bookingForm.startDate, bookingForm.endDate, reservations]);
+
+  const handleBookingClick = (reservation: Reservation, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedReservation(reservation);
+    setShowDetailModal(true);
+  };
+
+  const handleApproveBooking = async () => {
+    if (!selectedReservation || !session?.access_token) return;
+    
+    setIsProcessing(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations?id=eq.${selectedReservation.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            status: 'approved',
+            approved_by: user?.id,
+            approved_at: new Date().toISOString(),
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to approve booking');
+
+      // Update local state
+      setReservations(prev => prev.map(r => 
+        r.id === selectedReservation.id 
+          ? { ...r, status: 'approved', approved_by: user?.id }
+          : r
+      ));
+
+      toast({ title: 'Booking approved', description: 'The booking has been approved.' });
+      setShowDetailModal(false);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'error' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRejectBooking = async () => {
+    if (!selectedReservation || !session?.access_token) return;
+    
+    const reason = prompt('Reason for rejection (optional):');
+    
+    setIsProcessing(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations?id=eq.${selectedReservation.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            status: 'rejected',
+            rejected_reason: reason || null,
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to reject booking');
+
+      setReservations(prev => prev.map(r => 
+        r.id === selectedReservation.id 
+          ? { ...r, status: 'rejected', rejected_reason: reason }
+          : r
+      ));
+
+      toast({ title: 'Booking rejected', description: 'The booking has been rejected.' });
+      setShowDetailModal(false);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'error' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    if (!selectedReservation || !session?.access_token) return;
+    
+    if (!confirm('Are you sure you want to cancel this booking?')) return;
+    
+    setIsProcessing(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations?id=eq.${selectedReservation.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            status: 'cancelled',
+            canceled_at: new Date().toISOString(),
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to cancel booking');
+
+      setReservations(prev => prev.map(r => 
+        r.id === selectedReservation.id 
+          ? { ...r, status: 'cancelled' }
+          : r
+      ));
+
+      toast({ title: 'Booking cancelled', description: 'The booking has been cancelled.' });
+      setShowDetailModal(false);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'error' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDayClick = (date: Date) => {
     setSelectedDate(date);
+    const dateStr = date.toISOString().split('T')[0];
     setBookingForm((prev) => ({
       ...prev,
-      startDate: date.toISOString().split('T')[0],
-      endDate: date.toISOString().split('T')[0],
+      startDate: dateStr,
+      endDate: dateStr,
     }));
     setShowBookingModal(true);
   };
 
   const handleSubmitBooking = async () => {
+    if (!organization?.id || !session?.access_token || !user?.id) {
+      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      return;
+    }
+
+    if (!bookingForm.assetId || !bookingForm.startDate) {
+      toast({ title: 'Error', description: 'Please select an asset and date.', variant: 'error' });
+      return;
+    }
+
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setShowBookingModal(false);
-    setBookingForm({
-      assetId: '',
-      startDate: '',
-      endDate: '',
-      startTime: '09:00',
-      endTime: '17:00',
-      notes: '',
-    });
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const selectedAsset = assets.find(a => a.id === bookingForm.assetId);
+      const isAviation = selectedAsset && ['planes', 'helicopters'].includes(selectedAsset.section);
+
+      // Build datetime
+      let startDatetime: string;
+      let endDatetime: string;
+
+      if (isAviation) {
+        startDatetime = `${bookingForm.startDate}T${bookingForm.startTime}:00`;
+        endDatetime = `${bookingForm.endDate || bookingForm.startDate}T${bookingForm.endTime}:00`;
+      } else {
+        // For residences/boats, use check-in/check-out times or default full day
+        startDatetime = `${bookingForm.startDate}T15:00:00`;
+        endDatetime = `${bookingForm.endDate || bookingForm.startDate}T11:00:00`;
+      }
+
+      const reservationData = {
+        organization_id: organization.id,
+        asset_id: bookingForm.assetId,
+        user_id: user.id,
+        title: bookingForm.title || `Booking by ${profile?.first_name || user.email}`,
+        start_datetime: startDatetime,
+        end_datetime: endDatetime,
+        status: 'pending', // All bookings start as pending
+        notes: bookingForm.notes || null,
+        guest_count: bookingForm.guestCount ? parseInt(bookingForm.guestCount) : null,
+      };
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(reservationData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const newReservation = await response.json();
+
+      // Add the new reservation to state with asset info
+      const fullReservation = {
+        ...newReservation[0],
+        asset: selectedAsset,
+        profile: profile,
+      };
+      setReservations(prev => [...prev, fullReservation]);
+
+      toast({
+        title: 'Booking created',
+        description: 'Your booking request has been submitted for approval.',
+      });
+
+      setShowBookingModal(false);
+      setBookingForm({
+        assetId: '',
+        startDate: '',
+        endDate: '',
+        startTime: '09:00',
+        endTime: '17:00',
+        title: '',
+        notes: '',
+        guestCount: '',
+      });
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      toast({
+        title: 'Booking failed',
+        description: error.message || 'An error occurred.',
+        variant: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const selectedAsset = mockAssets.find((a) => a.id === bookingForm.assetId);
+  const selectedAsset = assets.find((a) => a.id === bookingForm.assetId);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return { color: 'text-emerald-400 bg-emerald-400/10', icon: CheckCircle2 };
+      case 'pending':
+        return { color: 'text-amber-400 bg-amber-400/10', icon: AlertCircle };
+      case 'rejected':
+        return { color: 'text-red-400 bg-red-400/10', icon: X };
+      case 'cancelled':
+        return { color: 'text-gray-400 bg-gray-400/10', icon: X };
+      default:
+        return { color: 'text-muted bg-muted/10', icon: AlertCircle };
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -206,18 +526,10 @@ export default function CalendarPage() {
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Calendar</h1>
           <p className="text-muted mt-1">View and manage bookings across all assets</p>
         </div>
-        <div className="flex items-center gap-3">
-          {isDevMode() && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-sm font-medium">Demo</span>
-            </div>
-          )}
-          <Button onClick={() => setShowBookingModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Booking
-          </Button>
-        </div>
+        <Button onClick={() => setShowBookingModal(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          New Booking
+        </Button>
       </div>
 
       {/* Filters */}
@@ -235,6 +547,8 @@ export default function CalendarPage() {
         </button>
         {Object.entries(SECTIONS).map(([key, section]) => {
           const Icon = SECTION_ICONS[key];
+          const hasAssets = assets.some(a => a.section === key);
+          if (!hasAssets) return null;
           return (
             <button
               key={key}
@@ -242,9 +556,10 @@ export default function CalendarPage() {
               className={cn(
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
                 selectedSection === key
-                  ? 'bg-gold-500 text-navy-950'
+                  ? 'text-navy-950'
                   : 'bg-surface text-muted hover:text-white'
               )}
+              style={selectedSection === key ? { backgroundColor: section.color } : undefined}
             >
               <Icon className="w-4 h-4" />
               {section.label}
@@ -255,39 +570,36 @@ export default function CalendarPage() {
 
       {/* Calendar */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={handlePrevMonth}
-              className="p-2 rounded-lg bg-surface hover:bg-navy-800 text-muted hover:text-white transition-colors"
-            >
+            <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
               <ChevronLeft className="w-5 h-5" />
-            </button>
+            </Button>
             <h2 className="text-xl font-display font-semibold text-white min-w-[200px] text-center">
               {MONTHS[month]} {year}
             </h2>
-            <button
-              onClick={handleNextMonth}
-              className="p-2 rounded-lg bg-surface hover:bg-navy-800 text-muted hover:text-white transition-colors"
-            >
+            <Button variant="ghost" size="icon" onClick={handleNextMonth}>
               <ChevronRight className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setCurrentDate(new Date())}>
+          <Button variant="secondary" size="sm" onClick={handleToday}>
             Today
           </Button>
         </CardHeader>
-        <CardContent className="p-4">
-          {/* Day headers */}
-          <div className="grid grid-cols-7 mb-2">
+        <CardContent>
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-1 mb-1">
             {DAYS.map((day) => (
-              <div key={day} className="text-center text-sm font-medium text-muted py-2">
+              <div
+                key={day}
+                className="text-center text-sm font-medium text-muted py-2"
+              >
                 {day}
               </div>
             ))}
           </div>
 
-          {/* Calendar grid */}
+          {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map(({ date, isCurrentMonth }, index) => {
               const bookings = getBookingsForDate(date);
@@ -315,17 +627,24 @@ export default function CalendarPage() {
                   </div>
                   <div className="space-y-1">
                     {bookings.slice(0, 3).map((booking) => {
-                      const sectionInfo = SECTIONS[booking.section as keyof typeof SECTIONS];
+                      const sectionInfo = SECTIONS[booking.asset?.section as keyof typeof SECTIONS];
                       return (
                         <div
                           key={booking.id}
-                          className="text-xs px-1.5 py-0.5 rounded truncate"
+                          onClick={(e) => handleBookingClick(booking, e)}
+                          className={cn(
+                            'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 transition-opacity',
+                            booking.status === 'pending' && 'opacity-60',
+                            booking.status === 'cancelled' && 'line-through opacity-40',
+                            booking.status === 'rejected' && 'line-through opacity-40'
+                          )}
                           style={{
                             backgroundColor: `${sectionInfo?.color}20`,
                             color: sectionInfo?.color,
                           }}
+                          title={`${booking.asset?.name} - ${booking.status}`}
                         >
-                          {booking.assetName}
+                          {booking.asset?.name}
                         </div>
                       );
                     })}
@@ -346,48 +665,64 @@ export default function CalendarPage() {
           <CardTitle className="text-lg font-display">Upcoming Bookings</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y divide-border">
-            {filteredBookings
-              .filter((b) => new Date(b.startDate) >= new Date())
-              .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-              .slice(0, 5)
-              .map((booking) => {
-                const Icon = SECTION_ICONS[booking.section];
-                const sectionInfo = SECTIONS[booking.section as keyof typeof SECTIONS];
-                return (
-                  <div key={booking.id} className="px-6 py-4 flex items-center gap-4">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${sectionInfo?.color}20` }}
+          {filteredReservations.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <CalendarIcon className="w-12 h-12 text-muted mx-auto mb-3" />
+              <p className="text-muted">No bookings yet</p>
+              <Button className="mt-4" onClick={() => setShowBookingModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Create First Booking
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {filteredReservations
+                .filter((r) => new Date(r.start_datetime) >= new Date() && r.status !== 'cancelled' && r.status !== 'rejected')
+                .sort((a, b) => new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime())
+                .slice(0, 10)
+                .map((reservation) => {
+                  const Icon = SECTION_ICONS[reservation.asset?.section || 'planes'];
+                  const sectionInfo = SECTIONS[reservation.asset?.section as keyof typeof SECTIONS];
+                  const statusBadge = getStatusBadge(reservation.status);
+                  const StatusIcon = statusBadge.icon;
+                  
+                  return (
+                    <div 
+                      key={reservation.id} 
+                      className="px-6 py-4 flex items-center gap-4 cursor-pointer hover:bg-surface/50 transition-colors"
+                      onClick={() => {
+                        setSelectedReservation(reservation);
+                        setShowDetailModal(true);
+                      }}
                     >
-                      <Icon className="w-5 h-5" style={{ color: sectionInfo?.color }} />
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${sectionInfo?.color}20` }}
+                      >
+                        <Icon className="w-5 h-5" style={{ color: sectionInfo?.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {reservation.asset?.name || 'Unknown Asset'}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {reservation.profile?.first_name || reservation.profile?.email || 'Unknown'} • {formatDate(new Date(reservation.start_datetime))}
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize flex-shrink-0',
+                          statusBadge.color
+                        )}
+                      >
+                        <StatusIcon className="w-3.5 h-3.5" />
+                        {reservation.status}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white">{booking.assetName}</p>
-                      <p className="text-xs text-muted">
-                        {booking.userName} • {formatDate(booking.startDate)}
-                        {booking.route && ` • ${booking.route}`}
-                      </p>
-                    </div>
-                    <div
-                      className={cn(
-                        'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize',
-                        booking.status === 'approved'
-                          ? 'text-emerald-400 bg-emerald-400/10'
-                          : 'text-amber-400 bg-amber-400/10'
-                      )}
-                    >
-                      {booking.status === 'approved' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5" />
-                      )}
-                      {booking.status}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+                  );
+                })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -409,112 +744,334 @@ export default function CalendarPage() {
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Asset Selection */}
-              <div>
-                <Label>Select Asset</Label>
-                <select
-                  value={bookingForm.assetId}
-                  onChange={(e) =>
-                    setBookingForm((prev) => ({ ...prev, assetId: e.target.value }))
-                  }
-                  className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
-                >
-                  <option value="">Choose an asset...</option>
-                  {mockAssets.map((asset) => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.name} ({SECTIONS[asset.section as keyof typeof SECTIONS]?.label})
-                    </option>
-                  ))}
-                </select>
+              {assets.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted mb-4">No assets available. Add an asset first.</p>
+                  <Button variant="secondary" onClick={() => setShowBookingModal(false)}>
+                    Close
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Asset Selection */}
+                  <div>
+                    <Label>Select Asset *</Label>
+                    <select
+                      value={bookingForm.assetId}
+                      onChange={(e) =>
+                        setBookingForm((prev) => ({ ...prev, assetId: e.target.value }))
+                      }
+                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
+                    >
+                      <option value="">Choose an asset...</option>
+                      {assets.map((asset) => (
+                        <option key={asset.id} value={asset.id}>
+                          {asset.name} ({SECTIONS[asset.section as keyof typeof SECTIONS]?.label})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <Label>Booking Title</Label>
+                    <Input
+                      placeholder="e.g., Family vacation, Business trip"
+                      value={bookingForm.title}
+                      onChange={(e) =>
+                        setBookingForm((prev) => ({ ...prev, title: e.target.value }))
+                      }
+                    />
+                  </div>
+
+                  {/* Date Selection */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Start Date *</Label>
+                      <Input
+                        type="date"
+                        value={bookingForm.startDate}
+                        onChange={(e) =>
+                          setBookingForm((prev) => ({ ...prev, startDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>End Date</Label>
+                      <Input
+                        type="date"
+                        value={bookingForm.endDate}
+                        min={bookingForm.startDate}
+                        onChange={(e) =>
+                          setBookingForm((prev) => ({ ...prev, endDate: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Conflict Warning */}
+                  {conflicts.length > 0 && (
+                    <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-400">Scheduling Conflict</p>
+                          <p className="text-xs text-amber-400/80 mt-1">
+                            This asset has {conflicts.length} existing booking{conflicts.length > 1 ? 's' : ''} during this time:
+                          </p>
+                          <ul className="mt-2 space-y-1">
+                            {conflicts.map((c) => (
+                              <li key={c.id} className="text-xs text-amber-400/70">
+                                • {formatDate(new Date(c.start_datetime))} - {c.status}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Time Selection (for aviation) */}
+                  {selectedAsset && ['planes', 'helicopters'].includes(selectedAsset.section) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Departure Time</Label>
+                        <Input
+                          type="time"
+                          value={bookingForm.startTime}
+                          onChange={(e) =>
+                            setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Arrival Time (est.)</Label>
+                        <Input
+                          type="time"
+                          value={bookingForm.endTime}
+                          onChange={(e) =>
+                            setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Guest Count (for residences/boats) */}
+                  {selectedAsset && ['residences', 'boats'].includes(selectedAsset.section) && (
+                    <div>
+                      <Label>Number of Guests</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 4"
+                        value={bookingForm.guestCount}
+                        onChange={(e) =>
+                          setBookingForm((prev) => ({ ...prev, guestCount: e.target.value }))
+                        }
+                      />
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  <div>
+                    <Label>Notes (optional)</Label>
+                    <textarea
+                      rows={3}
+                      placeholder="Add any special requests or notes..."
+                      value={bookingForm.notes}
+                      onChange={(e) =>
+                        setBookingForm((prev) => ({ ...prev, notes: e.target.value }))
+                      }
+                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white placeholder:text-muted focus:outline-none focus:border-gold-500 resize-none"
+                    />
+                  </div>
+
+                  {/* Submit */}
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={() => setShowBookingModal(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={handleSubmitBooking}
+                      disabled={!bookingForm.assetId || !bookingForm.startDate || isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create Booking'
+                      )}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Booking Detail Modal */}
+      {showDetailModal && selectedReservation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowDetailModal(false)}
+          />
+          <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const Icon = SECTION_ICONS[selectedReservation.asset?.section || 'planes'];
+                  const sectionInfo = SECTIONS[selectedReservation.asset?.section as keyof typeof SECTIONS];
+                  return (
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${sectionInfo?.color}20` }}
+                    >
+                      <Icon className="w-5 h-5" style={{ color: sectionInfo?.color }} />
+                    </div>
+                  );
+                })()}
+                <div>
+                  <CardTitle className="text-lg font-display">
+                    {selectedReservation.title || selectedReservation.asset?.name}
+                  </CardTitle>
+                  <p className="text-sm text-muted">{selectedReservation.asset?.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted">Status</span>
+                {(() => {
+                  const statusBadge = getStatusBadge(selectedReservation.status);
+                  const StatusIcon = statusBadge.icon;
+                  return (
+                    <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize', statusBadge.color)}>
+                      <StatusIcon className="w-3.5 h-3.5" />
+                      {selectedReservation.status}
+                    </div>
+                  );
+                })()}
               </div>
 
-              {/* Date Selection */}
+              {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Start Date</Label>
-                  <Input
-                    type="date"
-                    value={bookingForm.startDate}
-                    onChange={(e) =>
-                      setBookingForm((prev) => ({ ...prev, startDate: e.target.value }))
-                    }
-                  />
+                  <span className="text-xs text-muted block mb-1">Start</span>
+                  <p className="text-sm text-white">
+                    {new Date(selectedReservation.start_datetime).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {new Date(selectedReservation.start_datetime).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
                 </div>
                 <div>
-                  <Label>End Date</Label>
-                  <Input
-                    type="date"
-                    value={bookingForm.endDate}
-                    onChange={(e) =>
-                      setBookingForm((prev) => ({ ...prev, endDate: e.target.value }))
-                    }
-                  />
+                  <span className="text-xs text-muted block mb-1">End</span>
+                  <p className="text-sm text-white">
+                    {new Date(selectedReservation.end_datetime).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {new Date(selectedReservation.end_datetime).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
                 </div>
               </div>
 
-              {/* Time Selection (for aviation) */}
-              {selectedAsset && ['planes', 'helicopters'].includes(selectedAsset.section) && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Departure Time</Label>
-                    <Input
-                      type="time"
-                      value={bookingForm.startTime}
-                      onChange={(e) =>
-                        setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Arrival Time (est.)</Label>
-                    <Input
-                      type="time"
-                      value={bookingForm.endTime}
-                      onChange={(e) =>
-                        setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))
-                      }
-                    />
-                  </div>
+              {/* Booked By */}
+              <div>
+                <span className="text-xs text-muted block mb-1">Booked By</span>
+                <p className="text-sm text-white">
+                  {selectedReservation.profile?.first_name 
+                    ? `${selectedReservation.profile.first_name} ${selectedReservation.profile.last_name || ''}`
+                    : selectedReservation.profile?.email || 'Unknown'}
+                </p>
+              </div>
+
+              {/* Guest Count */}
+              {selectedReservation.guest_count && (
+                <div>
+                  <span className="text-xs text-muted block mb-1">Guests</span>
+                  <p className="text-sm text-white">{selectedReservation.guest_count} guests</p>
                 </div>
               )}
 
               {/* Notes */}
-              <div>
-                <Label>Notes (optional)</Label>
-                <textarea
-                  rows={3}
-                  placeholder="Add any special requests or notes..."
-                  value={bookingForm.notes}
-                  onChange={(e) =>
-                    setBookingForm((prev) => ({ ...prev, notes: e.target.value }))
-                  }
-                  className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white placeholder:text-muted focus:outline-none focus:border-gold-500 resize-none"
-                />
-              </div>
+              {selectedReservation.notes && (
+                <div>
+                  <span className="text-xs text-muted block mb-1">Notes</span>
+                  <p className="text-sm text-white bg-surface p-3 rounded-lg">{selectedReservation.notes}</p>
+                </div>
+              )}
 
-              {/* Submit */}
-              <div className="flex gap-3 pt-4">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={() => setShowBookingModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={handleSubmitBooking}
-                  disabled={!bookingForm.assetId || !bookingForm.startDate || isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Booking'
-                  )}
-                </Button>
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-border">
+                {selectedReservation.status === 'pending' && (
+                  <>
+                    <Button
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+                      onClick={handleApproveBooking}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                      Approve
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="flex-1 hover:bg-red-500/20 hover:text-red-400"
+                      onClick={handleRejectBooking}
+                      disabled={isProcessing}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {(selectedReservation.status === 'approved' || selectedReservation.status === 'pending') && 
+                 selectedReservation.user_id === user?.id && (
+                  <Button
+                    variant="secondary"
+                    className="flex-1 hover:bg-red-500/20 hover:text-red-400"
+                    onClick={handleCancelBooking}
+                    disabled={isProcessing}
+                  >
+                    Cancel Booking
+                  </Button>
+                )}
+                {(selectedReservation.status === 'cancelled' || selectedReservation.status === 'rejected') && (
+                  <p className="text-sm text-muted text-center w-full py-2">
+                    This booking has been {selectedReservation.status}.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
