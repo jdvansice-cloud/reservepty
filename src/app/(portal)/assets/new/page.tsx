@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,15 +80,19 @@ const AMENITIES = [
 
 export default function NewAssetPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preSelectedSection = searchParams.get('section') as SectionType | null;
   const { toast } = useToast();
   const { organization, session } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState(1);
+  
+  // If section is pre-selected via URL, start at step 2
+  const [step, setStep] = useState(preSelectedSection && SECTIONS[preSelectedSection] ? 2 : 1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [formData, setFormData] = useState<FormData>({
-    section: null,
+    section: preSelectedSection && SECTIONS[preSelectedSection] ? preSelectedSection : null,
     name: '',
     description: '',
     amenities: [],

@@ -229,13 +229,17 @@ export default function AssetsPage() {
             <p className="text-muted max-w-md mx-auto">
               {search
                 ? `No assets match "${search}". Try a different search term.`
+                : activeSection !== 'all'
+                ? `No ${SECTIONS[activeSection as keyof typeof SECTIONS]?.label.toLowerCase()} added yet.`
                 : 'Get started by adding your first asset.'}
             </p>
             {!search && (
-              <Link href="/assets/new">
+              <Link href={activeSection !== 'all' ? `/assets/new?section=${activeSection}` : '/assets/new'}>
                 <Button className="mt-6">
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Asset
+                  {activeSection !== 'all' 
+                    ? `Add ${SECTIONS[activeSection as keyof typeof SECTIONS]?.label.slice(0, -1)}`
+                    : 'Add Your First Asset'}
                 </Button>
               </Link>
             )}
