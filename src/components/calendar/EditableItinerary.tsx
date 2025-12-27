@@ -30,13 +30,13 @@ interface Airport {
 }
 
 interface FlightLeg {
-  type: 'customer' | 'empty';
+  type: string;
   departure: string;
   arrival: string;
   departureTime: string;
   arrivalTime: string;
-  flightTimeMinutes: number;
-  distanceNm: number;
+  flightTimeMinutes?: number;
+  distanceNm?: number;
 }
 
 interface EditableItineraryProps {
@@ -371,11 +371,11 @@ export function EditableItinerary({
                   </div>
 
                   {/* Calculated Info */}
-                  {leg.distanceNm > 0 && (
+                  {(leg.distanceNm ?? 0) > 0 && (
                     <div className="text-xs text-muted flex items-center gap-3">
-                      <span>{leg.distanceNm.toLocaleString()} nm</span>
+                      <span>{(leg.distanceNm ?? 0).toLocaleString()} nm</span>
                       <span>•</span>
-                      <span>{formatDuration(leg.flightTimeMinutes)} flight</span>
+                      <span>{formatDuration(leg.flightTimeMinutes ?? 0)} flight</span>
                       <span>•</span>
                       <span>Arrives: {new Date(leg.arrivalTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -394,7 +394,7 @@ export function EditableItinerary({
                     <div className="flex-1 border-t border-dashed border-border" />
                     <div className="text-center">
                       <Plane className={cn('w-3 h-3 mx-auto', leg.type === 'customer' ? 'text-sky-400' : 'text-gray-400')} />
-                      <div className="text-xs text-muted">{formatDuration(leg.flightTimeMinutes)}</div>
+                      <div className="text-xs text-muted">{formatDuration(leg.flightTimeMinutes ?? 0)}</div>
                     </div>
                     <div className="flex-1 border-t border-dashed border-border" />
                   </div>

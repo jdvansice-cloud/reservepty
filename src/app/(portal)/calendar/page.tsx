@@ -75,8 +75,12 @@ interface Reservation {
       arrival: string;
       departureTime: string;
       arrivalTime: string;
+      flightTimeMinutes?: number;
+      distanceNm?: number;
     }>;
-    legType?: string; // For display: 'customer' or 'empty'
+    totalDistanceNm?: number;
+    totalFlightMinutes?: number;
+    legType?: string;
   };
   asset?: Asset;
   profile?: {
