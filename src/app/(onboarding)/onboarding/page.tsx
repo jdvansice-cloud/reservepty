@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/components/ui/use-toast';
-import { cn, isDevMode, SECTIONS, SEAT_TIERS } from '@/lib/utils';
+import { cn, SECTIONS, SEAT_TIERS } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
@@ -78,11 +78,20 @@ export default function OnboardingPage() {
     );
   };
 
-  const handleDevBypass = async () => {
+  const handleComplete = async () => {
     if (!user) {
       toast({
         title: 'Not authenticated',
         description: 'Please sign in first.',
+        variant: 'error',
+      });
+      return;
+    }
+
+    if (selectedSections.length === 0) {
+      toast({
+        title: 'No sections selected',
+        description: 'Please select at least one section.',
         variant: 'error',
       });
       return;
@@ -95,10 +104,10 @@ export default function OnboardingPage() {
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .insert({
-          legal_name: companyData.legalName || 'Dev Organization',
-          commercial_name: companyData.commercialName || 'Dev Org',
-          ruc: companyData.ruc || '1234567-8',
-          dv: companyData.dv || '90',
+          legal_name: companyData.legalName,
+          commercial_name: companyData.commercialName || null,
+          ruc: companyData.ruc || null,
+          dv: companyData.dv || null,
           billing_email: companyData.billingEmail || user.email,
         })
         .select()
@@ -117,26 +126,29 @@ export default function OnboardingPage() {
 
       if (memberError) throw memberError;
 
-      // Create subscription with complimentary status
+      // Calculate trial end date (14 days from now)
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
+      // Create subscription with trial status
       const { data: sub, error: subError } = await supabase
         .from('subscriptions')
         .insert({
           organization_id: org.id,
-          status: 'complimentary',
+          status: 'trial',
           billing_cycle: billingCycle,
-          seat_limit: 100, // Max seats for dev
+          seat_limit: selectedSeats,
+          trial_ends_at: trialEndsAt.toISOString(),
+          current_period_start: new Date().toISOString(),
+          current_period_end: trialEndsAt.toISOString(),
         })
         .select()
         .single();
 
       if (subError) throw subError;
 
-      // Create entitlements for all sections
-      const sections = selectedSections.length > 0 
-        ? selectedSections 
-        : ['planes', 'helicopters', 'residences', 'boats'];
-      
-      const entitlements = sections.map((section) => ({
+      // Create entitlements for selected sections
+      const entitlements = selectedSections.map((section) => ({
         subscription_id: sub.id,
         section,
         is_active: true,
@@ -181,14 +193,14 @@ export default function OnboardingPage() {
       await refreshProfile();
 
       toast({
-        title: 'Setup complete!',
-        description: 'Your organization has been created with dev access.',
+        title: 'Welcome to ReservePTY! 🎉',
+        description: 'Your 14-day free trial has started.',
         variant: 'success',
       });
 
       router.push('/dashboard');
     } catch (error: any) {
-      console.error('Dev bypass error:', error);
+      console.error('Onboarding error:', error);
       toast({
         title: 'Setup failed',
         description: error.message || 'An error occurred during setup.',
@@ -197,21 +209,6 @@ export default function OnboardingPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleComplete = async () => {
-    // In dev mode, use the bypass
-    if (isDevMode()) {
-      await handleDevBypass();
-      return;
-    }
-
-    // TODO: Implement payment flow with Tilopay
-    toast({
-      title: 'Payment not configured',
-      description: 'Payment integration is coming soon.',
-      variant: 'warning',
-    });
   };
 
   return (
@@ -537,40 +534,57 @@ export default function OnboardingPage() {
                   Complete your setup
                 </h2>
                 <p className="text-muted">
-                  {isDevMode()
-                    ? 'Dev mode: Skip payment and get instant access.'
-                    : 'Enter your payment details to start your subscription.'}
+                  Start your 14-day free trial. No credit card required.
                 </p>
               </div>
 
-              {isDevMode() ? (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                      <Zap className="w-8 h-8 text-amber-400" />
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
+                    <Zap className="w-8 h-8 text-gold-500" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold text-white mb-2">
+                    14-Day Free Trial
+                  </h3>
+                  <p className="text-muted mb-6">
+                    Get full access to all selected sections with {selectedSeats} seats.
+                    No payment required during trial period.
+                  </p>
+                  
+                  {/* Summary */}
+                  <div className="bg-navy-800/50 rounded-lg p-4 mb-6 text-left">
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted">Organization</span>
+                        <span className="text-white">{companyData.legalName || companyData.commercialName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted">Sections</span>
+                        <span className="text-white">
+                          {selectedSections.map(s => SECTIONS[s as keyof typeof SECTIONS].label).join(', ')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted">Seats</span>
+                        <span className="text-white">{selectedSeats} users</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted">Billing (after trial)</span>
+                        <span className="text-white capitalize">{billingCycle}</span>
+                      </div>
                     </div>
-                    <h3 className="font-display text-xl font-semibold text-white mb-2">
-                      Development Mode Active
-                    </h3>
-                    <p className="text-muted mb-6">
-                      Payment is bypassed. You'll get complimentary access with all sections 
-                      activated and 100 seats.
-                    </p>
-                    <Button onClick={handleDevBypass} loading={isLoading} size="lg">
-                      Complete Setup
-                      <ChevronRight className="w-5 h-5" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <p className="text-muted">
-                      Payment integration coming soon. Please contact support for access.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+
+                  <Button onClick={handleComplete} loading={isLoading} size="lg" className="w-full">
+                    Start Free Trial
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                  
+                  <p className="text-xs text-muted mt-4">
+                    By starting your trial, you agree to our Terms of Service and Privacy Policy.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           )}
 
