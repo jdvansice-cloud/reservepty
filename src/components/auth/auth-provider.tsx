@@ -44,6 +44,7 @@ interface AuthContextType {
   isDevMode: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
   signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | Error | null }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setCurrentOrganization: (orgId: string) => void;
@@ -256,6 +257,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
+  const signInWithGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/onboarding`,
+      },
+    });
+  };
+
   const signOut = async () => {
     localStorage.removeItem('currentOrganizationId');
     localStorage.removeItem('devModeActive');
@@ -324,6 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isDevMode,
         signIn,
         signUp,
+        signInWithGoogle,
         signOut,
         refreshProfile,
         setCurrentOrganization,
