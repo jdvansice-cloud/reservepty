@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
+import { PlaneBookingModal, PlaneBookingData } from '@/components/calendar/PlaneBookingModal';
 import {
   ChevronLeft,
   ChevronRight,
@@ -36,6 +37,17 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+interface Airport {
+  id: string;
+  icao_code: string;
+  iata_code: string | null;
+  name: string;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 interface Asset {
   id: string;
   name: string;
@@ -53,6 +65,17 @@ interface Reservation {
   status: string;
   notes: string | null;
   guest_count: number | null;
+  metadata?: {
+    tripType?: string;
+    legs?: Array<{
+      type: string;
+      departure: string;
+      arrival: string;
+      departureTime: string;
+      arrivalTime: string;
+    }>;
+    legType?: string; // For display: 'customer' or 'empty'
+  };
   asset?: Asset;
   profile?: {
     first_name: string | null;
@@ -76,6 +99,8 @@ export default function CalendarPage() {
   
   const [assets, setAssets] = useState<Asset[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [showPlaneBookingModal, setShowPlaneBookingModal] = useState(false);
   
   const [bookingForm, setBookingForm] = useState({
     assetId: preselectedAsset || '',
@@ -152,6 +177,22 @@ export default function CalendarPage() {
             profile: Array.isArray(r.profile) ? r.profile[0] : r.profile,
           }));
           setReservations(formattedReservations);
+        }
+
+        // Fetch airports for plane bookings
+        const airportsResponse = await fetch(
+          `${baseUrl}/rest/v1/airports?is_active=eq.true&order=iata_code.asc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (airportsResponse.ok) {
+          const airportsData = await airportsResponse.json();
+          setAirports(airportsData);
         }
       } catch (error) {
         console.error('Error fetching calendar data:', error);
@@ -377,6 +418,81 @@ export default function CalendarPage() {
       toast({ title: 'Error', description: error.message, variant: 'error' });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Handle plane booking submission
+  const handlePlaneBookingSubmit = async (data: PlaneBookingData) => {
+    if (!organization?.id || !session?.access_token || !user?.id) {
+      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const selectedAsset = assets.find(a => a.id === bookingForm.assetId);
+
+      // Create the main reservation with metadata
+      const reservationData = {
+        organization_id: organization.id,
+        asset_id: bookingForm.assetId,
+        user_id: user.id,
+        title: data.title,
+        start_datetime: data.startDatetime,
+        end_datetime: data.endDatetime,
+        status: 'pending',
+        notes: data.notes || null,
+        metadata: data.metadata,
+      };
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify(reservationData),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const newReservation = await response.json();
+
+      // Add to local state
+      const fullReservation = {
+        ...newReservation[0],
+        asset: selectedAsset,
+        profile: profile,
+      };
+      setReservations(prev => [...prev, fullReservation]);
+
+      toast({
+        title: 'Flight booking created',
+        description: 'Your flight request has been submitted for approval.',
+      });
+
+      setShowPlaneBookingModal(false);
+      setBookingForm(prev => ({ ...prev, assetId: '' }));
+    } catch (error: any) {
+      console.error('Plane booking error:', error);
+      toast({
+        title: 'Booking failed',
+        description: error.message || 'An error occurred.',
+        variant: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -628,6 +744,9 @@ export default function CalendarPage() {
                   <div className="space-y-1">
                     {bookings.slice(0, 3).map((booking) => {
                       const sectionInfo = SECTIONS[booking.asset?.section as keyof typeof SECTIONS];
+                      const hasFlightLegs = booking.metadata?.legs && booking.metadata.legs.length > 0;
+                      const tripType = booking.metadata?.tripType;
+                      
                       return (
                         <div
                           key={booking.id}
@@ -642,9 +761,17 @@ export default function CalendarPage() {
                             backgroundColor: `${sectionInfo?.color}20`,
                             color: sectionInfo?.color,
                           }}
-                          title={`${booking.asset?.name} - ${booking.status}`}
+                          title={`${booking.asset?.name} - ${booking.status}${hasFlightLegs ? ` (${tripType === 'taken' ? 'Outbound' : 'Return'})` : ''}`}
                         >
-                          {booking.asset?.name}
+                          {hasFlightLegs ? (
+                            <span className="flex items-center gap-1">
+                              <span>{booking.metadata?.legs?.[0]?.departure}</span>
+                              <span>→</span>
+                              <span>{booking.metadata?.legs?.[0]?.arrival}</span>
+                            </span>
+                          ) : (
+                            booking.asset?.name
+                          )}
                         </div>
                       );
                     })}
@@ -758,18 +885,34 @@ export default function CalendarPage() {
                     <Label>Select Asset *</Label>
                     <select
                       value={bookingForm.assetId}
-                      onChange={(e) =>
-                        setBookingForm((prev) => ({ ...prev, assetId: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const asset = assets.find(a => a.id === selectedId);
+                        
+                        // If plane is selected, switch to plane booking modal
+                        if (asset?.section === 'planes') {
+                          setBookingForm((prev) => ({ ...prev, assetId: selectedId }));
+                          setShowBookingModal(false);
+                          setShowPlaneBookingModal(true);
+                        } else {
+                          setBookingForm((prev) => ({ ...prev, assetId: selectedId }));
+                        }
+                      }}
                       className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
                     >
                       <option value="">Choose an asset...</option>
                       {assets.map((asset) => (
                         <option key={asset.id} value={asset.id}>
                           {asset.name} ({SECTIONS[asset.section as keyof typeof SECTIONS]?.label})
+                          {asset.section === 'planes' && ' ✈️'}
                         </option>
                       ))}
                     </select>
+                    {assets.some(a => a.section === 'planes') && (
+                      <p className="text-xs text-muted mt-1">
+                        ✈️ Planes have an enhanced booking flow with itinerary planning
+                      </p>
+                    )}
                   </div>
 
                   {/* Title */}
@@ -1007,6 +1150,64 @@ export default function CalendarPage() {
                 </div>
               </div>
 
+              {/* Flight Itinerary (for planes) */}
+              {selectedReservation.metadata?.legs && selectedReservation.metadata.legs.length > 0 && (
+                <div className="p-4 rounded-lg bg-surface border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-white flex items-center gap-2">
+                      <Plane className="w-4 h-4 text-sky-400" />
+                      Flight Itinerary
+                    </span>
+                    <span className="text-xs text-muted capitalize">
+                      {selectedReservation.metadata.tripType === 'taken' ? 'Outbound Flight' : 'Pickup Flight'}
+                    </span>
+                  </div>
+                  
+                  {selectedReservation.metadata.legs.map((leg, index) => (
+                    <div 
+                      key={index}
+                      className={cn(
+                        'p-3 rounded-lg border',
+                        leg.type === 'customer' 
+                          ? 'bg-sky-500/10 border-sky-500/30' 
+                          : 'bg-gray-500/10 border-gray-500/30 opacity-60'
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={cn(
+                          'text-xs font-medium px-2 py-0.5 rounded-full',
+                          leg.type === 'customer' 
+                            ? 'bg-sky-500/20 text-sky-400' 
+                            : 'bg-gray-500/20 text-gray-400'
+                        )}>
+                          {leg.type === 'customer' ? 'Your Flight' : 'Empty Leg (Repositioning)'}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-center">
+                          <div className="text-base font-bold text-white">{leg.departure}</div>
+                          <div className="text-xs text-muted">
+                            {new Date(leg.departureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <div className="flex-1 flex items-center gap-2">
+                          <div className="flex-1 border-t border-dashed border-border" />
+                          <Plane className={cn('w-3 h-3', leg.type === 'customer' ? 'text-sky-400' : 'text-gray-400')} />
+                          <div className="flex-1 border-t border-dashed border-border" />
+                        </div>
+                        <div className="text-center">
+                          <div className="text-base font-bold text-white">{leg.arrival}</div>
+                          <div className="text-xs text-muted">
+                            {new Date(leg.arrivalTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Booked By */}
               <div>
                 <span className="text-xs text-muted block mb-1">Booked By</span>
@@ -1076,6 +1277,22 @@ export default function CalendarPage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Plane Booking Modal */}
+      {bookingForm.assetId && assets.find(a => a.id === bookingForm.assetId)?.section === 'planes' && (
+        <PlaneBookingModal
+          isOpen={showPlaneBookingModal}
+          onClose={() => {
+            setShowPlaneBookingModal(false);
+            setBookingForm(prev => ({ ...prev, assetId: '' }));
+          }}
+          onSubmit={handlePlaneBookingSubmit}
+          asset={assets.find(a => a.id === bookingForm.assetId)!}
+          airports={airports}
+          selectedDate={selectedDate || undefined}
+          isSubmitting={isSubmitting}
+        />
       )}
     </div>
   );
