@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -91,6 +91,59 @@ const DEV_MEMBERSHIP: OrganizationMembership = {
   organization: DEV_ORGANIZATION,
 };
 
+// Helper to get session from cookies
+function getSessionFromCookies(): { accessToken: string; refreshToken: string; user: User } | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    const cookies = document.cookie.split(';');
+    let accessToken = '';
+    let refreshToken = '';
+    let userData: User | null = null;
+    
+    for (const cookie of cookies) {
+      const trimmed = cookie.trim();
+      
+      // Look for auth token cookies (they may be chunked)
+      if (trimmed.includes('auth-token')) {
+        const [name, ...valueParts] = trimmed.split('=');
+        const value = valueParts.join('=');
+        
+        try {
+          const decoded = decodeURIComponent(value);
+          
+          // Handle base64 encoded cookies
+          if (decoded.startsWith('base64-')) {
+            const base64 = decoded.replace('base64-', '');
+            const json = atob(base64);
+            const parsed = JSON.parse(json);
+            
+            if (parsed.access_token) accessToken = parsed.access_token;
+            if (parsed.refresh_token) refreshToken = parsed.refresh_token;
+            if (parsed.user) userData = parsed.user;
+          } else {
+            // Try direct JSON parse
+            const parsed = JSON.parse(decoded);
+            if (parsed.access_token) accessToken = parsed.access_token;
+            if (parsed.refresh_token) refreshToken = parsed.refresh_token;
+            if (parsed.user) userData = parsed.user;
+          }
+        } catch (e) {
+          // Cookie might be split, continue
+        }
+      }
+    }
+    
+    if (accessToken && userData) {
+      return { accessToken, refreshToken, user: userData };
+    }
+  } catch (e) {
+    console.error('Error parsing session from cookies:', e);
+  }
+  
+  return null;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -108,66 +161,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const router = useRouter();
-  const supabase = createClient();
+  
+  // Create supabase client for auth operations only
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfileWithFetch = useCallback(async (userId: string, accessToken: string) => {
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    console.log('fetchProfileWithFetch called for user:', userId);
+    
     try {
       // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('Error fetching profile:', profileError);
+      const profileRes = await fetch(
+        `${baseUrl}/rest/v1/profiles?id=eq.${userId}&select=*`,
+        {
+          headers: {
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+      
+      console.log('Profile fetch status:', profileRes.status);
+      
+      if (profileRes.ok) {
+        const profiles = await profileRes.json();
+        console.log('Profiles:', profiles);
+        if (profiles.length > 0) {
+          setProfile(profiles[0]);
+        }
       }
 
-      setProfile(profileData);
+      // Fetch memberships with organization data
+      const membershipRes = await fetch(
+        `${baseUrl}/rest/v1/organization_members?user_id=eq.${userId}&select=id,organization_id,role,tier_id,organization:organizations(*)`,
+        {
+          headers: {
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
 
-      // Fetch ALL user's organizations
-      const { data: membershipData } = await supabase
-        .from('organization_members')
-        .select(`
-          id,
-          organization_id,
-          role,
-          tier_id,
-          organization:organizations(*)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+      console.log('Membership fetch status:', membershipRes.status);
 
-      if (membershipData && membershipData.length > 0) {
-        const formattedMemberships = membershipData.map((m: any) => ({
-          id: m.id,
-          organization_id: m.organization_id,
-          role: m.role,
-          tier_id: m.tier_id,
-          organization: m.organization,
-        }));
+      if (membershipRes.ok) {
+        const membershipData = await membershipRes.json();
+        console.log('Memberships:', membershipData);
         
-        setMemberships(formattedMemberships);
+        if (membershipData && membershipData.length > 0) {
+          const formattedMemberships = membershipData.map((m: any) => ({
+            id: m.id,
+            organization_id: m.organization_id,
+            role: m.role,
+            tier_id: m.tier_id,
+            organization: Array.isArray(m.organization) ? m.organization[0] : m.organization,
+          }));
+          
+          setMemberships(formattedMemberships);
 
-        // Restore saved organization or use first
-        const savedOrgId = localStorage.getItem('currentOrganizationId');
-        const currentMembership = formattedMemberships.find(
-          (m: OrganizationMembership) => m.organization_id === savedOrgId
-        ) || formattedMemberships[0];
-        
-        setMembership(currentMembership);
-        setOrganization(currentMembership.organization);
+          // Restore saved organization or use first
+          const savedOrgId = localStorage.getItem('currentOrganizationId');
+          const currentMembership = formattedMemberships.find(
+            (m: OrganizationMembership) => m.organization_id === savedOrgId
+          ) || formattedMemberships[0];
+          
+          setMembership(currentMembership);
+          setOrganization(currentMembership.organization);
+          console.log('Set organization:', currentMembership.organization);
+        }
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
+    console.log('AuthProvider useEffect running');
+    
     // Check for dev mode session first
     if (typeof window !== 'undefined' && localStorage.getItem('devModeActive') === 'true') {
+      console.log('Dev mode active');
       setUser(DEV_USER);
       setProfile(DEV_PROFILE);
       setOrganization(DEV_ORGANIZATION);
@@ -177,76 +257,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Add a timeout to ensure loading state doesn't hang indefinitely
-    const timeoutId = setTimeout(() => {
+    // Try to get session from cookies directly
+    const cookieSession = getSessionFromCookies();
+    console.log('Cookie session:', cookieSession ? 'found' : 'not found');
+    
+    if (cookieSession) {
+      console.log('Found session in cookies, user:', cookieSession.user.email);
+      setUser(cookieSession.user);
+      setSession({ 
+        access_token: cookieSession.accessToken,
+        refresh_token: cookieSession.refreshToken,
+      } as Session);
+      fetchProfileWithFetch(cookieSession.user.id, cookieSession.accessToken);
+    } else {
+      console.log('No session found in cookies, setting loading to false');
       setIsLoading(false);
-    }, 5000); // 5 second max loading time
-
-    // Real Supabase auth
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        console.error('Error getting session:', error);
-        setIsLoading(false);
-        clearTimeout(timeoutId);
-        return;
-      }
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => {
-          clearTimeout(timeoutId);
-        });
-      } else {
-        setIsLoading(false);
-        clearTimeout(timeoutId);
-      }
-    }).catch((err) => {
-      console.error('Auth session error:', err);
-      setIsLoading(false);
-      clearTimeout(timeoutId);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-        setOrganization(null);
-        setMembership(null);
-        setMemberships([]);
-        setIsLoading(false);
-      }
-
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('currentOrganizationId');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeoutId);
-    };
-  }, [supabase, fetchProfile]);
-
-  const refreshProfile = async () => {
-    if (user && user.id !== 'dev-user-001') {
-      await fetchProfile(user.id);
     }
-  };
+  }, [fetchProfileWithFetch]);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) return { error };
+
+      if (data.session && data.user) {
+        setSession(data.session);
+        setUser(data.user);
+        await fetchProfileWithFetch(data.user.id, data.session.access_token);
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signUp = async (
@@ -254,29 +301,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     metadata?: { firstName?: string; lastName?: string }
   ) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: metadata?.firstName,
-          last_name: metadata?.lastName,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: metadata?.firstName,
+            last_name: metadata?.lastName,
+          },
+          emailRedirectTo: `${window.location.origin}/onboarding`,
         },
-        emailRedirectTo: `${window.location.origin}/onboarding`,
-      },
-    });
-
-    // Create profile after successful signup
-    if (!error && data.user) {
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        email: email,
-        first_name: metadata?.firstName || null,
-        last_name: metadata?.lastName || null,
       });
-    }
 
-    return { error };
+      if (error) return { error };
+
+      // Create profile for new user
+      if (data.user) {
+        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        
+        await fetch(`${baseUrl}/rest/v1/profiles`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${data.session?.access_token || apiKey}`,
+          },
+          body: JSON.stringify({
+            id: data.user.id,
+            email: data.user.email,
+            first_name: metadata?.firstName || null,
+            last_name: metadata?.lastName || null,
+          }),
+        });
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -289,53 +353,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    localStorage.removeItem('currentOrganizationId');
-    localStorage.removeItem('devModeActive');
-    
-    // If in dev mode, just clear state
-    if (user?.id === 'dev-user-001') {
-      setUser(null);
-      setSession(null);
-      setProfile(null);
-      setOrganization(null);
-      setMembership(null);
-      setMemberships([]);
-      router.push('/login');
-      return;
-    }
-    
     await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
     setProfile(null);
     setOrganization(null);
     setMembership(null);
     setMemberships([]);
+    localStorage.removeItem('currentOrganizationId');
     router.push('/login');
   };
 
+  const refreshProfile = async () => {
+    if (user && session?.access_token) {
+      await fetchProfileWithFetch(user.id, session.access_token);
+    }
+  };
+
   const setCurrentOrganization = (orgId: string) => {
-    const newMembership = memberships.find(m => m.organization_id === orgId);
-    if (newMembership) {
-      setMembership(newMembership);
-      setOrganization(newMembership.organization);
+    const selected = memberships.find((m) => m.organization_id === orgId);
+    if (selected) {
+      setMembership(selected);
+      setOrganization(selected.organization);
       localStorage.setItem('currentOrganizationId', orgId);
     }
   };
 
-  // Dev mode bypass - for development/testing
   const devModeLogin = () => {
-    localStorage.setItem('devModeActive', 'true');
-    setUser(DEV_USER);
-    setProfile(DEV_PROFILE);
-    setOrganization(DEV_ORGANIZATION);
-    setMembership(DEV_MEMBERSHIP);
-    setMemberships([DEV_MEMBERSHIP]);
-    router.push('/dashboard');
+    if (isDevMode) {
+      localStorage.setItem('devModeActive', 'true');
+      setUser(DEV_USER);
+      setProfile(DEV_PROFILE);
+      setOrganization(DEV_ORGANIZATION);
+      setMembership(DEV_MEMBERSHIP);
+      setMemberships([DEV_MEMBERSHIP]);
+      setIsLoading(false);
+    }
   };
 
   const devModeLogout = () => {
     localStorage.removeItem('devModeActive');
     setUser(null);
-    setSession(null);
     setProfile(null);
     setOrganization(null);
     setMembership(null);
@@ -375,25 +433,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
-
-// Convenience hooks
-export function useUser() {
-  const { user } = useAuth();
-  return user;
-}
-
-export function useProfile() {
-  const { profile } = useAuth();
-  return profile;
-}
-
-export function useOrganization() {
-  const { organization, membership, memberships, setCurrentOrganization } = useAuth();
-  return { organization, membership, memberships, setCurrentOrganization };
-}
-
-export function useIsOwnerOrAdmin() {
-  const { membership } = useAuth();
-  return membership?.role === 'owner' || membership?.role === 'admin';
 }
