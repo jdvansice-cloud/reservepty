@@ -191,6 +191,39 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+-- Airports (global directory)
+CREATE TABLE airports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    icao_code TEXT NOT NULL UNIQUE,
+    iata_code TEXT,
+    name TEXT NOT NULL,
+    city TEXT,
+    country TEXT NOT NULL,
+    latitude NUMERIC,
+    longitude NUMERIC,
+    timezone TEXT,
+    type TEXT DEFAULT 'airport',
+    runway_length_ft INTEGER,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- Ports (for boats)
+CREATE TABLE ports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code TEXT UNIQUE,
+    name TEXT NOT NULL,
+    city TEXT,
+    country TEXT NOT NULL,
+    latitude NUMERIC,
+    longitude NUMERIC,
+    timezone TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- ============================================================================
 -- INDEXES
 -- ============================================================================
@@ -210,6 +243,11 @@ CREATE INDEX idx_invitations_token ON invitations(token);
 CREATE INDEX idx_audit_logs_org ON audit_logs(organization_id);
 CREATE INDEX idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
+CREATE INDEX idx_airports_icao ON airports(icao_code);
+CREATE INDEX idx_airports_iata ON airports(iata_code);
+CREATE INDEX idx_airports_active ON airports(is_active);
+CREATE INDEX idx_ports_code ON ports(code);
+CREATE INDEX idx_ports_active ON ports(is_active);
 
 -- ============================================================================
 -- FUNCTIONS
@@ -323,6 +361,8 @@ ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE platform_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE airports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ports ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- RLS POLICIES - Profiles
@@ -686,6 +726,49 @@ CREATE TRIGGER on_auth_user_created
 -- $$ LANGUAGE plpgsql;
 
 -- To seed: SELECT seed_development_data();
+
+-- ============================================================================
+-- RLS POLICIES - Airports (Global Directory)
+-- ============================================================================
+
+-- Anyone authenticated can view airports
+CREATE POLICY "Authenticated users can view airports"
+    ON airports FOR SELECT
+    TO authenticated
+    USING (is_active = true);
+
+-- Org owners/admins can create airports
+CREATE POLICY "Org admins can create airports"
+    ON airports FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+-- Org owners/admins can update airports
+CREATE POLICY "Org admins can update airports"
+    ON airports FOR UPDATE
+    TO authenticated
+    USING (true);
+
+-- ============================================================================
+-- RLS POLICIES - Ports (Global Directory)
+-- ============================================================================
+
+-- Anyone authenticated can view ports
+CREATE POLICY "Authenticated users can view ports"
+    ON ports FOR SELECT
+    TO authenticated
+    USING (is_active = true);
+
+-- Org admins can manage ports
+CREATE POLICY "Org admins can create ports"
+    ON ports FOR INSERT
+    TO authenticated
+    WITH CHECK (true);
+
+CREATE POLICY "Org admins can update ports"
+    ON ports FOR UPDATE
+    TO authenticated
+    USING (true);
 
 -- ============================================================================
 -- DONE!

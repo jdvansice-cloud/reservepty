@@ -17,6 +17,9 @@ import {
   Star,
   X,
   Navigation,
+  Ruler,
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 
 interface Airport {
@@ -30,6 +33,7 @@ interface Airport {
   longitude: number | null;
   timezone: string | null;
   type: string;
+  runway_length_ft: number | null;
   is_active: boolean;
 }
 
@@ -65,7 +69,8 @@ export default function AirportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newAirport, setNewAirport] = useState({
+  const [editingAirport, setEditingAirport] = useState<Airport | null>(null);
+  const [airportForm, setAirportForm] = useState({
     iata_code: '',
     icao_code: '',
     name: '',
@@ -73,8 +78,9 @@ export default function AirportsPage() {
     country: '',
     latitude: '',
     longitude: '',
+    runway_length_ft: '',
   });
-  const [isAdding, setIsAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch airports and planes
   useEffect(() => {
@@ -90,7 +96,7 @@ export default function AirportsPage() {
 
         // Fetch airports
         const airportsResponse = await fetch(
-          `${baseUrl}/rest/v1/airports?is_active=eq.true&order=iata_code.asc`,
+          `${baseUrl}/rest/v1/airports?is_active=eq.true&order=name.asc`,
           {
             headers: {
               'apikey': apiKey!,
@@ -119,16 +125,6 @@ export default function AirportsPage() {
           if (planesResponse.ok) {
             const planesData = await planesResponse.json();
             setPlanes(planesData);
-            
-            // Find home airport from first plane
-            if (planesData.length > 0 && planesData[0].details?.homeAirport) {
-              const homeCode = planesData[0].details.homeAirport;
-              const airportsData = await airportsResponse.json().catch(() => airports);
-              const home = airports.find(a => 
-                a.iata_code === homeCode || a.icao_code === homeCode
-              );
-              if (home) setSelectedHomeAirport(home);
-            }
           }
         }
       } catch (error) {
@@ -179,56 +175,144 @@ export default function AirportsPage() {
     );
   };
 
-  const handleAddAirport = async () => {
+  const openAddModal = () => {
+    setEditingAirport(null);
+    setAirportForm({
+      iata_code: '',
+      icao_code: '',
+      name: '',
+      city: '',
+      country: '',
+      latitude: '',
+      longitude: '',
+      runway_length_ft: '',
+    });
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (airport: Airport) => {
+    setEditingAirport(airport);
+    setAirportForm({
+      iata_code: airport.iata_code || '',
+      icao_code: airport.icao_code || '',
+      name: airport.name,
+      city: airport.city || '',
+      country: airport.country,
+      latitude: airport.latitude?.toString() || '',
+      longitude: airport.longitude?.toString() || '',
+      runway_length_ft: airport.runway_length_ft?.toString() || '',
+    });
+    setShowAddModal(true);
+  };
+
+  const handleSaveAirport = async () => {
     if (!session?.access_token) return;
-    if (!newAirport.iata_code && !newAirport.icao_code) {
-      toast({ title: 'Error', description: 'IATA or ICAO code is required.', variant: 'error' });
+    if (!airportForm.icao_code && !airportForm.name) {
+      toast({ title: 'Error', description: 'ICAO code and name are required.', variant: 'error' });
       return;
     }
 
-    setIsAdding(true);
+    setIsSaving(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      const response = await fetch(
-        `${baseUrl}/rest/v1/airports`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': apiKey!,
-            'Authorization': `Bearer ${session.access_token}`,
-            'Prefer': 'return=representation',
-          },
-          body: JSON.stringify({
-            iata_code: newAirport.iata_code?.toUpperCase() || null,
-            icao_code: newAirport.icao_code?.toUpperCase() || `K${newAirport.iata_code?.toUpperCase()}`,
-            name: newAirport.name,
-            city: newAirport.city || null,
-            country: newAirport.country,
-            latitude: newAirport.latitude ? parseFloat(newAirport.latitude) : null,
-            longitude: newAirport.longitude ? parseFloat(newAirport.longitude) : null,
-            type: 'airport',
-            is_active: true,
-          }),
-        }
-      );
+      const airportData = {
+        iata_code: airportForm.iata_code?.toUpperCase() || null,
+        icao_code: airportForm.icao_code?.toUpperCase(),
+        name: airportForm.name,
+        city: airportForm.city || null,
+        country: airportForm.country,
+        latitude: airportForm.latitude ? parseFloat(airportForm.latitude) : null,
+        longitude: airportForm.longitude ? parseFloat(airportForm.longitude) : null,
+        runway_length_ft: airportForm.runway_length_ft ? parseInt(airportForm.runway_length_ft) : null,
+        type: 'airport',
+        is_active: true,
+      };
+
+      let response;
+      if (editingAirport) {
+        // Update existing
+        response = await fetch(
+          `${baseUrl}/rest/v1/airports?id=eq.${editingAirport.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+              'Prefer': 'return=representation',
+            },
+            body: JSON.stringify(airportData),
+          }
+        );
+      } else {
+        // Create new
+        response = await fetch(
+          `${baseUrl}/rest/v1/airports`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+              'Prefer': 'return=representation',
+            },
+            body: JSON.stringify(airportData),
+          }
+        );
+      }
 
       if (!response.ok) {
         const error = await response.text();
         throw new Error(error);
       }
 
-      const added = await response.json();
-      setAirports([...airports, added[0]]);
-      toast({ title: 'Airport added', description: `${newAirport.name} has been added.` });
+      const result = await response.json();
+      
+      if (editingAirport) {
+        setAirports(airports.map(a => a.id === editingAirport.id ? result[0] : a));
+        toast({ title: 'Airport updated', description: `${airportForm.name} has been updated.` });
+      } else {
+        setAirports([...airports, result[0]]);
+        toast({ title: 'Airport added', description: `${airportForm.name} has been added.` });
+      }
+      
       setShowAddModal(false);
-      setNewAirport({ iata_code: '', icao_code: '', name: '', city: '', country: '', latitude: '', longitude: '' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'error' });
     } finally {
-      setIsAdding(false);
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAirport = async (airport: Airport) => {
+    if (!session?.access_token) return;
+    if (!confirm(`Delete ${airport.name}?`)) return;
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/airports?id=eq.${airport.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ is_active: false }),
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to delete');
+
+      setAirports(airports.filter(a => a.id !== airport.id));
+      toast({ title: 'Airport deleted', description: `${airport.name} has been removed.` });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'error' });
     }
   };
 
@@ -248,7 +332,7 @@ export default function AirportsPage() {
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Airports</h1>
           <p className="text-muted mt-1">Airport directory for flight planning</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>
+        <Button onClick={openAddModal}>
           <Plus className="w-4 h-4 mr-2" />
           Add Airport
         </Button>
@@ -274,7 +358,7 @@ export default function AirportsPage() {
                 <option value="">Select home airport...</option>
                 {airports.map((airport) => (
                   <option key={airport.id} value={airport.id}>
-                    {airport.iata_code || airport.icao_code} - {airport.name}
+                    {airport.icao_code}{airport.iata_code ? ` / ${airport.iata_code}` : ''} - {airport.name}
                   </option>
                 ))}
               </select>
@@ -309,7 +393,7 @@ export default function AirportsPage() {
             <Card 
               key={airport.id} 
               className={cn(
-                'transition-all hover:border-gold-500/30',
+                'transition-all hover:border-gold-500/30 group',
                 isHome && 'border-gold-500 bg-gold-500/5'
               )}
             >
@@ -321,13 +405,13 @@ export default function AirportsPage() {
                       isHome ? 'bg-gold-500/20' : 'bg-surface'
                     )}>
                       <span className={cn(
-                        'text-lg font-bold',
+                        'text-sm font-bold',
                         isHome ? 'text-gold-500' : 'text-white'
                       )}>
-                        {airport.iata_code || airport.icao_code?.slice(-3)}
+                        {airport.icao_code}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-medium text-white text-sm line-clamp-1">
                         {airport.name}
                       </h3>
@@ -335,15 +419,39 @@ export default function AirportsPage() {
                         <MapPin className="w-3 h-3" />
                         {airport.city}, {airport.country}
                       </p>
+                      {airport.iata_code && (
+                        <p className="text-xs text-gold-500/70">IATA: {airport.iata_code}</p>
+                      )}
                     </div>
                   </div>
-                  {isHome && (
-                    <Star className="w-4 h-4 text-gold-500 fill-current flex-shrink-0" />
-                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isHome && <Star className="w-4 h-4 text-gold-500 fill-current" />}
+                    <button
+                      onClick={() => openEditModal(airport)}
+                      className="p-1.5 rounded hover:bg-surface text-muted hover:text-white"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAirport(airport)}
+                      className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 
+                {/* Runway Length */}
+                {airport.runway_length_ft && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted">
+                    <Ruler className="w-3 h-3" />
+                    <span>Runway: {airport.runway_length_ft.toLocaleString()} ft</span>
+                  </div>
+                )}
+                
+                {/* Distance from home */}
                 {distance !== null && !isHome && (
-                  <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                  <div className="mt-2 pt-2 border-t border-border flex items-center justify-between">
                     <span className="text-xs text-muted flex items-center gap-1">
                       <Navigation className="w-3 h-3" />
                       Distance from home
@@ -353,10 +461,11 @@ export default function AirportsPage() {
                     </span>
                   </div>
                 )}
-                
-                {airport.icao_code && airport.iata_code && (
-                  <div className="mt-2 text-xs text-muted">
-                    ICAO: {airport.icao_code}
+
+                {/* Coordinates */}
+                {airport.latitude && airport.longitude && (
+                  <div className="mt-2 text-xs text-muted/60">
+                    {airport.latitude.toFixed(4)}°, {airport.longitude.toFixed(4)}°
                   </div>
                 )}
               </CardContent>
@@ -372,17 +481,23 @@ export default function AirportsPage() {
             <p className="text-muted">
               {search ? `No airports found matching "${search}"` : 'No airports in directory'}
             </p>
+            <Button className="mt-4" onClick={openAddModal}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add First Airport
+            </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Add Airport Modal */}
+      {/* Add/Edit Airport Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-          <Card className="relative max-w-md w-full animate-fade-up">
+          <Card className="relative max-w-md w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">Add Airport</CardTitle>
+              <CardTitle className="text-xl font-display">
+                {editingAirport ? 'Edit Airport' : 'Add Airport'}
+              </CardTitle>
               <button
                 onClick={() => setShowAddModal(false)}
                 className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
@@ -393,30 +508,32 @@ export default function AirportsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>IATA Code *</Label>
-                  <Input
-                    placeholder="MIA"
-                    value={newAirport.iata_code}
-                    onChange={(e) => setNewAirport({ ...newAirport, iata_code: e.target.value.toUpperCase() })}
-                    maxLength={3}
-                  />
-                </div>
-                <div>
-                  <Label>ICAO Code</Label>
+                  <Label>ICAO Code *</Label>
                   <Input
                     placeholder="KMIA"
-                    value={newAirport.icao_code}
-                    onChange={(e) => setNewAirport({ ...newAirport, icao_code: e.target.value.toUpperCase() })}
+                    value={airportForm.icao_code}
+                    onChange={(e) => setAirportForm({ ...airportForm, icao_code: e.target.value.toUpperCase() })}
                     maxLength={4}
                   />
+                  <p className="text-xs text-muted mt-1">4-letter code (required)</p>
+                </div>
+                <div>
+                  <Label>IATA Code</Label>
+                  <Input
+                    placeholder="MIA"
+                    value={airportForm.iata_code}
+                    onChange={(e) => setAirportForm({ ...airportForm, iata_code: e.target.value.toUpperCase() })}
+                    maxLength={3}
+                  />
+                  <p className="text-xs text-muted mt-1">3-letter code (optional)</p>
                 </div>
               </div>
               <div>
                 <Label>Airport Name *</Label>
                 <Input
                   placeholder="Miami International Airport"
-                  value={newAirport.name}
-                  onChange={(e) => setNewAirport({ ...newAirport, name: e.target.value })}
+                  value={airportForm.name}
+                  onChange={(e) => setAirportForm({ ...airportForm, name: e.target.value })}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -424,51 +541,70 @@ export default function AirportsPage() {
                   <Label>City</Label>
                   <Input
                     placeholder="Miami"
-                    value={newAirport.city}
-                    onChange={(e) => setNewAirport({ ...newAirport, city: e.target.value })}
+                    value={airportForm.city}
+                    onChange={(e) => setAirportForm({ ...airportForm, city: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label>Country *</Label>
                   <Input
                     placeholder="USA"
-                    value={newAirport.country}
-                    onChange={(e) => setNewAirport({ ...newAirport, country: e.target.value })}
+                    value={airportForm.country}
+                    onChange={(e) => setAirportForm({ ...airportForm, country: e.target.value })}
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Latitude</Label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    placeholder="25.7959"
-                    value={newAirport.latitude}
-                    onChange={(e) => setNewAirport({ ...newAirport, latitude: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Longitude</Label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    placeholder="-80.2870"
-                    value={newAirport.longitude}
-                    onChange={(e) => setNewAirport({ ...newAirport, longitude: e.target.value })}
-                  />
+              
+              {/* Runway Length */}
+              <div>
+                <Label>Runway / Strip Length (ft)</Label>
+                <Input
+                  type="number"
+                  placeholder="10000"
+                  value={airportForm.runway_length_ft}
+                  onChange={(e) => setAirportForm({ ...airportForm, runway_length_ft: e.target.value })}
+                />
+                <p className="text-xs text-muted mt-1">Useful for aircraft compatibility</p>
+              </div>
+
+              {/* Coordinates */}
+              <div>
+                <Label className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Geolocation (for distance calculations)
+                </Label>
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      placeholder="Latitude (25.7959)"
+                      value={airportForm.latitude}
+                      onChange={(e) => setAirportForm({ ...airportForm, latitude: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      placeholder="Longitude (-80.2870)"
+                      value={airportForm.longitude}
+                      onChange={(e) => setAirportForm({ ...airportForm, longitude: e.target.value })}
+                    />
+                  </div>
                 </div>
               </div>
+
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowAddModal(false)}>
                   Cancel
                 </Button>
                 <Button 
                   className="flex-1" 
-                  onClick={handleAddAirport}
-                  disabled={isAdding || (!newAirport.iata_code && !newAirport.icao_code) || !newAirport.name || !newAirport.country}
+                  onClick={handleSaveAirport}
+                  disabled={isSaving || !airportForm.icao_code || !airportForm.name || !airportForm.country}
                 >
-                  {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add Airport'}
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingAirport ? 'Update' : 'Add Airport')}
                 </Button>
               </div>
             </CardContent>

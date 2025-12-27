@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
 import { PlaneBookingModal, PlaneBookingData } from '@/components/calendar/PlaneBookingModal';
+import { EditableItinerary } from '@/components/calendar/EditableItinerary';
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   AlertCircle,
   Loader2,
   Calendar as CalendarIcon,
+  Edit2,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
@@ -117,6 +119,8 @@ export default function CalendarPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [conflicts, setConflicts] = useState<Reservation[]>([]);
+  const [isEditingItinerary, setIsEditingItinerary] = useState(false);
+  const [isSavingItinerary, setIsSavingItinerary] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -493,6 +497,101 @@ export default function CalendarPage() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle saving updated itinerary (admin feature)
+  const handleSaveItinerary = async (updatedLegs: any[]) => {
+    if (!selectedReservation || !session?.access_token) return;
+
+    setIsSavingItinerary(true);
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      // Calculate new start and end times from legs
+      const firstLeg = updatedLegs[0];
+      const lastLeg = updatedLegs[updatedLegs.length - 1];
+      
+      const totalDistance = updatedLegs.reduce((sum, leg) => sum + (leg.distanceNm || 0), 0);
+      const totalFlightMinutes = updatedLegs.reduce((sum, leg) => sum + (leg.flightTimeMinutes || 0), 0);
+
+      // Update metadata
+      const newMetadata = {
+        ...selectedReservation.metadata,
+        legs: updatedLegs.map(leg => ({
+          type: leg.type,
+          departure: leg.departure,
+          arrival: leg.arrival,
+          departureTime: leg.departureTime,
+          arrivalTime: leg.arrivalTime,
+          distanceNm: leg.distanceNm,
+          flightTimeMinutes: leg.flightTimeMinutes,
+        })),
+        totalDistanceNm: totalDistance,
+        totalFlightMinutes,
+      };
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/reservations?id=eq.${selectedReservation.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=representation',
+          },
+          body: JSON.stringify({
+            start_datetime: firstLeg.departureTime,
+            end_datetime: lastLeg.arrivalTime,
+            metadata: newMetadata,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+
+      const updated = await response.json();
+
+      // Update local state
+      setReservations(prev => prev.map(r =>
+        r.id === selectedReservation.id
+          ? { 
+              ...r, 
+              start_datetime: firstLeg.departureTime,
+              end_datetime: lastLeg.arrivalTime,
+              metadata: newMetadata 
+            }
+          : r
+      ));
+
+      setSelectedReservation(prev => prev ? {
+        ...prev,
+        start_datetime: firstLeg.departureTime,
+        end_datetime: lastLeg.arrivalTime,
+        metadata: newMetadata,
+      } : null);
+
+      toast({
+        title: 'Itinerary updated',
+        description: 'The flight itinerary has been updated successfully.',
+      });
+
+      setIsEditingItinerary(false);
+    } catch (error: any) {
+      console.error('Save itinerary error:', error);
+      toast({
+        title: 'Update failed',
+        description: error.message || 'Failed to update itinerary.',
+        variant: 'error',
+      });
+    } finally {
+      setIsSavingItinerary(false);
     }
   };
 
@@ -1065,7 +1164,10 @@ export default function CalendarPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowDetailModal(false)}
+            onClick={() => {
+              setShowDetailModal(false);
+              setIsEditingItinerary(false);
+            }}
           />
           <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -1090,7 +1192,10 @@ export default function CalendarPage() {
                 </div>
               </div>
               <button
-                onClick={() => setShowDetailModal(false)}
+                onClick={() => {
+                  setShowDetailModal(false);
+                  setIsEditingItinerary(false);
+                }}
                 className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1153,58 +1258,103 @@ export default function CalendarPage() {
               {/* Flight Itinerary (for planes) */}
               {selectedReservation.metadata?.legs && selectedReservation.metadata.legs.length > 0 && (
                 <div className="p-4 rounded-lg bg-surface border border-border space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-white flex items-center gap-2">
-                      <Plane className="w-4 h-4 text-sky-400" />
-                      Flight Itinerary
-                    </span>
-                    <span className="text-xs text-muted capitalize">
-                      {selectedReservation.metadata.tripType === 'taken' ? 'Outbound Flight' : 'Pickup Flight'}
-                    </span>
-                  </div>
-                  
-                  {selectedReservation.metadata.legs.map((leg, index) => (
-                    <div 
-                      key={index}
-                      className={cn(
-                        'p-3 rounded-lg border',
-                        leg.type === 'customer' 
-                          ? 'bg-sky-500/10 border-sky-500/30' 
-                          : 'bg-gray-500/10 border-gray-500/30 opacity-60'
-                      )}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={cn(
-                          'text-xs font-medium px-2 py-0.5 rounded-full',
-                          leg.type === 'customer' 
-                            ? 'bg-sky-500/20 text-sky-400' 
-                            : 'bg-gray-500/20 text-gray-400'
-                        )}>
-                          {leg.type === 'customer' ? 'Your Flight' : 'Empty Leg (Repositioning)'}
+                  {isEditingItinerary ? (
+                    /* Editable Itinerary Mode */
+                    <EditableItinerary
+                      legs={selectedReservation.metadata.legs}
+                      airports={airports}
+                      cruiseSpeed={parseInt(assets.find(a => a.id === selectedReservation.asset_id)?.details?.cruiseSpeed || '450')}
+                      onSave={handleSaveItinerary}
+                      onCancel={() => setIsEditingItinerary(false)}
+                      isSaving={isSavingItinerary}
+                    />
+                  ) : (
+                    /* Read-only Itinerary Display */
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-white flex items-center gap-2">
+                          <Plane className="w-4 h-4 text-sky-400" />
+                          Flight Itinerary
                         </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted capitalize">
+                            {selectedReservation.metadata.tripType === 'taken' ? 'Outbound Flight' : 'Pickup Flight'}
+                          </span>
+                          {/* Edit button for admins - show for pending/approved bookings */}
+                          {(selectedReservation.status === 'pending' || selectedReservation.status === 'approved') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setIsEditingItinerary(true)}
+                              className="h-7 px-2"
+                            >
+                              <Edit2 className="w-3.5 h-3.5 mr-1" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-3">
-                        <div className="text-center">
-                          <div className="text-base font-bold text-white">{leg.departure}</div>
-                          <div className="text-xs text-muted">
-                            {new Date(leg.departureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      {selectedReservation.metadata.legs.map((leg, index) => (
+                        <div 
+                          key={index}
+                          className={cn(
+                            'p-3 rounded-lg border',
+                            leg.type === 'customer' 
+                              ? 'bg-sky-500/10 border-sky-500/30' 
+                              : 'bg-gray-500/10 border-gray-500/30 opacity-60'
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={cn(
+                              'text-xs font-medium px-2 py-0.5 rounded-full',
+                              leg.type === 'customer' 
+                                ? 'bg-sky-500/20 text-sky-400' 
+                                : 'bg-gray-500/20 text-gray-400'
+                            )}>
+                              {leg.type === 'customer' ? 'Your Flight' : 'Empty Leg (Repositioning)'}
+                            </span>
+                            {leg.distanceNm && (
+                              <span className="text-xs text-muted">
+                                {leg.distanceNm.toLocaleString()} nm
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                            <div className="text-center">
+                              <div className="text-base font-bold text-white">{leg.departure}</div>
+                              <div className="text-xs text-muted">
+                                {new Date(leg.departureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            <div className="flex-1 flex items-center gap-2">
+                              <div className="flex-1 border-t border-dashed border-border" />
+                              <Plane className={cn('w-3 h-3', leg.type === 'customer' ? 'text-sky-400' : 'text-gray-400')} />
+                              <div className="flex-1 border-t border-dashed border-border" />
+                            </div>
+                            <div className="text-center">
+                              <div className="text-base font-bold text-white">{leg.arrival}</div>
+                              <div className="text-xs text-muted">
+                                {new Date(leg.arrivalTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex-1 flex items-center gap-2">
-                          <div className="flex-1 border-t border-dashed border-border" />
-                          <Plane className={cn('w-3 h-3', leg.type === 'customer' ? 'text-sky-400' : 'text-gray-400')} />
-                          <div className="flex-1 border-t border-dashed border-border" />
+                      ))}
+
+                      {/* Total Trip Summary */}
+                      {selectedReservation.metadata.totalDistanceNm && (
+                        <div className="pt-2 border-t border-border/50 flex items-center justify-between text-xs text-muted">
+                          <span>Total Trip</span>
+                          <span>
+                            {selectedReservation.metadata.totalDistanceNm.toLocaleString()} nm • 
+                            {selectedReservation.metadata.legs.length} leg{selectedReservation.metadata.legs.length > 1 ? 's' : ''}
+                          </span>
                         </div>
-                        <div className="text-center">
-                          <div className="text-base font-bold text-white">{leg.arrival}</div>
-                          <div className="text-xs text-muted">
-                            {new Date(leg.arrivalTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      )}
+                    </>
+                  )}
                 </div>
               )}
 
