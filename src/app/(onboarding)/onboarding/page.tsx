@@ -114,6 +114,16 @@ export default function OnboardingPage() {
     console.log('handleComplete called');
     console.log('User:', user);
     console.log('Selected sections:', selectedSections);
+    console.log('Supabase client:', supabase);
+    
+    // Test if supabase client works
+    console.log('Testing supabase connection...');
+    try {
+      const { data: testData, error: testError } = await supabase.auth.getSession();
+      console.log('Auth session test - data:', testData, 'error:', testError);
+    } catch (e) {
+      console.error('Auth session test failed:', e);
+    }
     
     if (!user) {
       toast({
@@ -139,17 +149,29 @@ export default function OnboardingPage() {
     try {
       // Create organization
       console.log('Creating organization with data:', companyData);
-      const { data: org, error: orgError } = await supabase
+      console.log('About to call supabase.from("organizations").insert()...');
+      
+      const insertPayload = {
+        legal_name: companyData.legalName,
+        commercial_name: companyData.commercialName || null,
+        ruc: companyData.ruc || null,
+        dv: companyData.dv || null,
+        billing_email: companyData.billingEmail || user.email,
+      };
+      console.log('Insert payload:', insertPayload);
+      
+      // Try the insert
+      console.log('Calling insert now...');
+      const result = await supabase
         .from('organizations')
-        .insert({
-          legal_name: companyData.legalName,
-          commercial_name: companyData.commercialName || null,
-          ruc: companyData.ruc || null,
-          dv: companyData.dv || null,
-          billing_email: companyData.billingEmail || user.email,
-        })
+        .insert(insertPayload)
         .select()
         .single();
+      
+      console.log('Full result:', result);
+      const { data: org, error: orgError } = result;
+
+      console.log('Organization insert result - data:', org, 'error:', orgError);
 
       if (orgError) {
         console.error('Organization creation error:', orgError);
