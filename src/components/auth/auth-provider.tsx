@@ -177,15 +177,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Add a timeout to ensure loading state doesn't hang indefinitely
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000); // 5 second max loading time
+
     // Real Supabase auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        setIsLoading(false);
+        clearTimeout(timeoutId);
+        return;
+      }
+      
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        fetchProfile(session.user.id).finally(() => {
+          clearTimeout(timeoutId);
+        });
       } else {
         setIsLoading(false);
+        clearTimeout(timeoutId);
       }
+    }).catch((err) => {
+      console.error('Auth session error:', err);
+      setIsLoading(false);
+      clearTimeout(timeoutId);
     });
 
     // Listen for auth changes
@@ -210,7 +229,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, [supabase, fetchProfile]);
 
   const refreshProfile = async () => {
@@ -261,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/onboarding`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
       },
     });
   };
