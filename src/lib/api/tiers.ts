@@ -308,7 +308,18 @@ export async function validateBookingAgainstTier(
     };
   }
 
-  const tier = membership.tier;
+  // Cast membership to proper type - Supabase returns tier as array from join
+  interface MembershipWithTier {
+    tier_id: string | null;
+    tier: Array<{
+      name: string;
+      priority: number;
+      rules: TierRule[];
+    }> | null;
+  }
+  
+  const memberData = membership as unknown as MembershipWithTier;
+  const tier = memberData.tier?.[0];
   const rules = tier?.rules?.[0];
 
   if (!rules) {
@@ -403,14 +414,27 @@ export async function canOverrideBooking(
 
   if (!members || members.length !== 2) return false;
 
-  const requestingUser = members.find(m => m.user_id === userId);
-  const existingUser = members.find(m => m.user_id === existingBookingUserId);
+  // Cast to proper type - Supabase returns tier as array from join
+  interface MemberWithTierPriority {
+    user_id: string;
+    tier: Array<{
+      priority: number;
+      rules: Array<{ can_override: boolean }>;
+    }> | null;
+  }
+  
+  const membersData = members as unknown as MemberWithTierPriority[];
+  const requestingUser = membersData.find(m => m.user_id === userId);
+  const existingUser = membersData.find(m => m.user_id === existingBookingUserId);
 
-  if (!requestingUser?.tier || !existingUser?.tier) return false;
+  const requestingTier = requestingUser?.tier?.[0];
+  const existingTier = existingUser?.tier?.[0];
+
+  if (!requestingTier || !existingTier) return false;
 
   // Lower priority number = higher priority (1 is highest)
-  const canOverride = requestingUser.tier.rules?.[0]?.can_override;
-  const hasHigherPriority = requestingUser.tier.priority < existingUser.tier.priority;
+  const canOverride = requestingTier.rules?.[0]?.can_override;
+  const hasHigherPriority = requestingTier.priority < existingTier.priority;
 
   return canOverride && hasHigherPriority;
 }
