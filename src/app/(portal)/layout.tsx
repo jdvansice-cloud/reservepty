@@ -25,6 +25,9 @@ import {
   Anchor,
   Navigation,
   History,
+  Shield,
+  CheckCircle2,
+  CalendarDays,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -40,6 +43,9 @@ const mainNavigation = [
   { name: 'Assets', href: '/assets', icon: Layers },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'History', href: '/reservations', icon: History },
+  { name: 'Rules', href: '/rules', icon: Shield },
+  { name: 'Holidays', href: '/holidays', icon: CalendarDays },
+  { name: 'Approvals', href: '/approvals', icon: CheckCircle2 },
 ];
 
 const directoryNavigation = [

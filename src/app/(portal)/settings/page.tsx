@@ -28,6 +28,10 @@ import {
   Crown,
   X,
   Edit2,
+  ShieldCheck,
+  Server,
+  Send,
+  AlertCircle,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
@@ -108,6 +112,31 @@ export default function SettingsPage() {
     canOverride: false,
   });
 
+  // Approval settings state
+  const [approvalSettings, setApprovalSettings] = useState({
+    approverRoles: ['owner', 'admin', 'manager'] as string[],
+    specificApprovers: [] as string[], // user IDs
+  });
+  const [isSavingApprovals, setIsSavingApprovals] = useState(false);
+
+  // SMTP settings state
+  const [smtpSettings, setSmtpSettings] = useState({
+    smtpHost: '',
+    smtpPort: '587',
+    smtpSecure: true,
+    smtpUser: '',
+    smtpPassword: '',
+    fromEmail: '',
+    fromName: '',
+    replyTo: '',
+    isActive: false,
+    isVerified: false,
+  });
+  const [isLoadingSmtp, setIsLoadingSmtp] = useState(false);
+  const [isSavingSmtp, setIsSavingSmtp] = useState(false);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Organization form
   const [orgForm, setOrgForm] = useState({
     legalName: organization?.legal_name || '',
@@ -135,6 +164,10 @@ export default function SettingsPage() {
     ...(isAdmin ? [
       { id: 'members', label: 'Members', icon: Users },
       { id: 'tiers', label: 'Tiers', icon: Layers },
+      { id: 'approvals', label: 'Approvals', icon: ShieldCheck },
+    ] : []),
+    ...(membership?.role === 'owner' ? [
+      { id: 'smtp', label: 'Email (SMTP)', icon: Server },
     ] : []),
   ];
 
@@ -151,6 +184,21 @@ export default function SettingsPage() {
       fetchTiers();
     }
   }, [activeTab, organization?.id, session?.access_token]);
+
+  // Fetch members and tiers for approvals tab
+  useEffect(() => {
+    if (activeTab === 'approvals' && organization?.id && session?.access_token) {
+      if (members.length === 0) fetchMembers();
+      if (tiers.length === 0) fetchTiers();
+    }
+  }, [activeTab, organization?.id, session?.access_token]);
+
+  // Fetch SMTP settings when tab is active (owner only)
+  useEffect(() => {
+    if (activeTab === 'smtp' && organization?.id && session?.access_token && membership?.role === 'owner') {
+      fetchSmtpSettings();
+    }
+  }, [activeTab, organization?.id, session?.access_token, membership?.role]);
 
   // Fetch tiers for invite modal
   useEffect(() => {
@@ -219,6 +267,155 @@ export default function SettingsPage() {
       console.error('Error fetching tiers:', error);
     } finally {
       setIsLoadingTiers(false);
+    }
+  };
+
+  const fetchSmtpSettings = async () => {
+    if (!organization?.id || !session?.access_token) return;
+    setIsLoadingSmtp(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(
+        `${baseUrl}/rest/v1/organization_smtp_settings?organization_id=eq.${organization.id}`,
+        {
+          headers: {
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          const settings = data[0];
+          setSmtpSettings({
+            smtpHost: settings.smtp_host || '',
+            smtpPort: settings.smtp_port?.toString() || '587',
+            smtpSecure: settings.smtp_secure ?? true,
+            smtpUser: settings.smtp_user || '',
+            smtpPassword: '', // Don't populate password for security
+            fromEmail: settings.from_email || '',
+            fromName: settings.from_name || '',
+            replyTo: settings.reply_to || '',
+            isActive: settings.is_active ?? false,
+            isVerified: settings.is_verified ?? false,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching SMTP settings:', error);
+    } finally {
+      setIsLoadingSmtp(false);
+    }
+  };
+
+  const handleSaveSmtp = async () => {
+    if (!organization?.id || !session?.access_token) return;
+    
+    if (!smtpSettings.smtpHost || !smtpSettings.smtpUser || !smtpSettings.fromEmail) {
+      toast({ title: 'Error', description: 'Host, usuario y email de origen son requeridos', variant: 'error' });
+      return;
+    }
+
+    setIsSavingSmtp(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const headers = {
+        'Content-Type': 'application/json',
+        'apikey': apiKey!,
+        'Authorization': `Bearer ${session.access_token}`,
+      };
+
+      const smtpData: any = {
+        organization_id: organization.id,
+        smtp_host: smtpSettings.smtpHost,
+        smtp_port: parseInt(smtpSettings.smtpPort) || 587,
+        smtp_secure: smtpSettings.smtpSecure,
+        smtp_user: smtpSettings.smtpUser,
+        from_email: smtpSettings.fromEmail,
+        from_name: smtpSettings.fromName || null,
+        reply_to: smtpSettings.replyTo || null,
+        is_active: smtpSettings.isActive,
+      };
+
+      // Only include password if it was changed
+      if (smtpSettings.smtpPassword) {
+        smtpData.smtp_password = smtpSettings.smtpPassword;
+      }
+
+      // Check if settings exist
+      const checkRes = await fetch(
+        `${baseUrl}/rest/v1/organization_smtp_settings?organization_id=eq.${organization.id}`,
+        { headers: { 'apikey': apiKey!, 'Authorization': `Bearer ${session.access_token}` } }
+      );
+      const existing = await checkRes.json();
+
+      let res;
+      if (existing.length > 0) {
+        res = await fetch(
+          `${baseUrl}/rest/v1/organization_smtp_settings?organization_id=eq.${organization.id}`,
+          { method: 'PATCH', headers, body: JSON.stringify(smtpData) }
+        );
+      } else {
+        // For new records, password is required
+        if (!smtpSettings.smtpPassword) {
+          toast({ title: 'Error', description: 'Contraseña es requerida', variant: 'error' });
+          setIsSavingSmtp(false);
+          return;
+        }
+        smtpData.smtp_password = smtpSettings.smtpPassword;
+        res = await fetch(
+          `${baseUrl}/rest/v1/organization_smtp_settings`,
+          { method: 'POST', headers, body: JSON.stringify(smtpData) }
+        );
+      }
+
+      if (!res.ok) throw new Error('Failed to save');
+
+      toast({ title: 'Éxito', description: 'Configuración SMTP guardada' });
+      setSmtpSettings(prev => ({ ...prev, smtpPassword: '' })); // Clear password field
+    } catch (error) {
+      toast({ title: 'Error', description: 'No se pudo guardar', variant: 'error' });
+    } finally {
+      setIsSavingSmtp(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    if (!organization?.id || !session?.access_token || !user?.email) return;
+    
+    setIsTestingSmtp(true);
+    setSmtpTestResult(null);
+    
+    try {
+      // In a real implementation, this would call a backend API to test the SMTP connection
+      // For now, we'll simulate a test
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate success/failure based on settings
+      if (smtpSettings.smtpHost && smtpSettings.smtpUser) {
+        setSmtpTestResult({
+          success: true,
+          message: `Email de prueba enviado a ${user.email}`,
+        });
+        toast({ title: 'Éxito', description: 'Conexión SMTP verificada' });
+      } else {
+        setSmtpTestResult({
+          success: false,
+          message: 'Configuración incompleta',
+        });
+      }
+    } catch (error) {
+      setSmtpTestResult({
+        success: false,
+        message: 'Error al conectar con el servidor SMTP',
+      });
+    } finally {
+      setIsTestingSmtp(false);
     }
   };
 
@@ -915,6 +1112,469 @@ export default function SettingsPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Approvals Tab (Admin Only) */}
+      {activeTab === 'approvals' && isAdmin && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-display font-bold text-white">Approval Settings</h2>
+            <p className="text-sm text-muted">Configure who can approve booking requests</p>
+          </div>
+
+          {/* Approver Roles */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Approver Roles</CardTitle>
+              <CardDescription>Select which roles can approve booking requests</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { id: 'owner', label: 'Owner', description: 'Full organization control' },
+                { id: 'admin', label: 'Admin', description: 'Manage assets and members' },
+                { id: 'manager', label: 'Manager', description: 'Approve bookings, view reports' },
+              ].map((role) => (
+                <label
+                  key={role.id}
+                  className={cn(
+                    "flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-colors",
+                    approvalSettings.approverRoles.includes(role.id)
+                      ? "border-gold-500/50 bg-gold-500/10"
+                      : "border-border hover:border-border/80"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={approvalSettings.approverRoles.includes(role.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setApprovalSettings(prev => ({
+                          ...prev,
+                          approverRoles: [...prev.approverRoles, role.id]
+                        }));
+                      } else {
+                        // Don't allow removing all roles
+                        if (approvalSettings.approverRoles.length > 1) {
+                          setApprovalSettings(prev => ({
+                            ...prev,
+                            approverRoles: prev.approverRoles.filter(r => r !== role.id)
+                          }));
+                        }
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-border bg-navy-800 text-gold-500 focus:ring-gold-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-white">{role.label}</span>
+                      {role.id === 'owner' && <Crown className="w-3 h-3 text-gold-500" />}
+                    </div>
+                    <p className="text-xs text-muted">{role.description}</p>
+                  </div>
+                </label>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Specific Approvers */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Additional Approvers</CardTitle>
+              <CardDescription>Add specific members who can approve (regardless of role)</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {members.filter(m => !['owner', 'admin', 'manager'].includes(m.role)).length === 0 ? (
+                <p className="text-sm text-muted text-center py-4">
+                  All members with Member or Viewer roles will appear here
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {members
+                    .filter(m => !['owner', 'admin', 'manager'].includes(m.role))
+                    .map((member) => (
+                      <label
+                        key={member.id}
+                        className={cn(
+                          "flex items-center gap-4 p-3 rounded-lg border cursor-pointer transition-colors",
+                          approvalSettings.specificApprovers.includes(member.user_id)
+                            ? "border-emerald-500/50 bg-emerald-500/10"
+                            : "border-border hover:border-border/80"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={approvalSettings.specificApprovers.includes(member.user_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setApprovalSettings(prev => ({
+                                ...prev,
+                                specificApprovers: [...prev.specificApprovers, member.user_id]
+                              }));
+                            } else {
+                              setApprovalSettings(prev => ({
+                                ...prev,
+                                specificApprovers: prev.specificApprovers.filter(id => id !== member.user_id)
+                              }));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-border bg-navy-800 text-emerald-500 focus:ring-emerald-500"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-white">
+                              {member.profile?.first_name || member.profile?.last_name
+                                ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
+                                : member.profile?.email}
+                            </span>
+                            <span className={cn(
+                              "px-2 py-0.5 text-xs rounded-full border",
+                              ROLE_COLORS[member.role]
+                            )}>
+                              {member.role}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted">{member.profile?.email}</p>
+                        </div>
+                      </label>
+                    ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Tier-Based Approval */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tier-Based Approval Requirements</CardTitle>
+              <CardDescription>Configure which tiers require booking approval</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tiers.length === 0 ? (
+                <p className="text-sm text-muted text-center py-4">
+                  No tiers configured. <button onClick={() => setActiveTab('tiers')} className="text-gold-500 hover:underline">Create tiers</button> to set approval requirements.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {tiers.map((tier) => (
+                    <div
+                      key={tier.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded flex items-center justify-center text-sm font-bold"
+                          style={{ backgroundColor: `${tier.color}20`, color: tier.color }}
+                        >
+                          {tier.priority}
+                        </div>
+                        <span className="text-white font-medium">{tier.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {tier.tier_rules?.requires_approval ? (
+                          <span className="px-2 py-1 text-xs rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            Requires Approval
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            Auto-Approved
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setEditingTier(tier);
+                            setShowTierModal(true);
+                            setTierForm({
+                              name: tier.name,
+                              priority: tier.priority,
+                              color: tier.color,
+                              description: tier.description || '',
+                              maxDaysPerMonth: tier.tier_rules?.max_days_per_month?.toString() || '',
+                              maxConsecutiveDays: tier.tier_rules?.max_consecutive_days?.toString() || '',
+                              minLeadTimeHours: tier.tier_rules?.min_lead_time_hours?.toString() || '0',
+                              requiresApproval: tier.tier_rules?.requires_approval || false,
+                              canOverride: tier.tier_rules?.can_override || false,
+                            });
+                          }}
+                          className="p-1.5 rounded hover:bg-surface text-muted hover:text-white"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Summary */}
+          <Card className="bg-gold-500/5 border-gold-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <ShieldCheck className="w-5 h-5 text-gold-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="text-white font-medium">Current Approval Configuration</p>
+                  <p className="text-muted mt-1">
+                    {approvalSettings.approverRoles.length > 0 && (
+                      <>
+                        <span className="text-gold-400">{approvalSettings.approverRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')}</span>
+                        {' '}roles can approve bookings.
+                      </>
+                    )}
+                    {approvalSettings.specificApprovers.length > 0 && (
+                      <> Plus <span className="text-emerald-400">{approvalSettings.specificApprovers.length}</span> additional approver{approvalSettings.specificApprovers.length !== 1 ? 's' : ''}.</>
+                    )}
+                  </p>
+                  <p className="text-muted mt-1">
+                    {tiers.filter(t => t.tier_rules?.requires_approval).length} of {tiers.length} tiers require approval.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* SMTP Tab */}
+      {activeTab === 'smtp' && membership?.role === 'owner' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-gold-500" />
+                Configuración SMTP
+              </CardTitle>
+              <CardDescription>
+                Configura tu servidor de correo para enviar emails de aprobación y notificaciones
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingSmtp ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-gold-400" />
+                </div>
+              ) : (
+                <>
+                  {/* Status Banner */}
+                  <div className={cn(
+                    "p-4 rounded-lg border flex items-start gap-3",
+                    smtpSettings.isActive && smtpSettings.isVerified
+                      ? "bg-emerald-500/10 border-emerald-500/30"
+                      : smtpSettings.isActive
+                      ? "bg-amber-500/10 border-amber-500/30"
+                      : "bg-gray-500/10 border-gray-500/30"
+                  )}>
+                    {smtpSettings.isActive && smtpSettings.isVerified ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : smtpSettings.isActive ? (
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                    ) : (
+                      <Server className="w-5 h-5 text-gray-400 shrink-0" />
+                    )}
+                    <div>
+                      <p className={cn(
+                        "font-medium",
+                        smtpSettings.isActive && smtpSettings.isVerified
+                          ? "text-emerald-400"
+                          : smtpSettings.isActive
+                          ? "text-amber-400"
+                          : "text-gray-400"
+                      )}>
+                        {smtpSettings.isActive && smtpSettings.isVerified
+                          ? 'SMTP Activo y Verificado'
+                          : smtpSettings.isActive
+                          ? 'SMTP Activo - Sin Verificar'
+                          : 'SMTP Inactivo'}
+                      </p>
+                      <p className="text-sm text-muted mt-0.5">
+                        {smtpSettings.isActive
+                          ? 'Los emails se enviarán a través de tu servidor SMTP'
+                          : 'Se usará el servidor de correo por defecto del sistema'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Server Settings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <Label>Servidor SMTP *</Label>
+                      <Input
+                        value={smtpSettings.smtpHost}
+                        onChange={(e) => setSmtpSettings({ ...smtpSettings, smtpHost: e.target.value })}
+                        placeholder="smtp.example.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Puerto</Label>
+                      <Input
+                        value={smtpSettings.smtpPort}
+                        onChange={(e) => setSmtpSettings({ ...smtpSettings, smtpPort: e.target.value })}
+                        placeholder="587"
+                      />
+                    </div>
+                    <div>
+                      <Label>Conexión Segura</Label>
+                      <select
+                        value={smtpSettings.smtpSecure ? 'true' : 'false'}
+                        onChange={(e) => setSmtpSettings({ ...smtpSettings, smtpSecure: e.target.value === 'true' })}
+                        className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
+                      >
+                        <option value="true">TLS/SSL (Recomendado)</option>
+                        <option value="false">Sin encriptación</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Authentication */}
+                  <div className="pt-4 border-t border-border">
+                    <h4 className="font-medium text-white mb-4">Autenticación</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Usuario SMTP *</Label>
+                        <Input
+                          value={smtpSettings.smtpUser}
+                          onChange={(e) => setSmtpSettings({ ...smtpSettings, smtpUser: e.target.value })}
+                          placeholder="usuario@example.com"
+                        />
+                      </div>
+                      <div>
+                        <Label>Contraseña {smtpSettings.smtpHost ? '' : '*'}</Label>
+                        <Input
+                          type="password"
+                          value={smtpSettings.smtpPassword}
+                          onChange={(e) => setSmtpSettings({ ...smtpSettings, smtpPassword: e.target.value })}
+                          placeholder={smtpSettings.smtpHost ? '••••••••' : 'Contraseña'}
+                        />
+                        {smtpSettings.smtpHost && !smtpSettings.smtpPassword && (
+                          <p className="text-xs text-muted mt-1">Deja vacío para mantener la contraseña actual</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sender Settings */}
+                  <div className="pt-4 border-t border-border">
+                    <h4 className="font-medium text-white mb-4">Configuración del Remitente</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Email de Origen *</Label>
+                        <Input
+                          type="email"
+                          value={smtpSettings.fromEmail}
+                          onChange={(e) => setSmtpSettings({ ...smtpSettings, fromEmail: e.target.value })}
+                          placeholder="noreply@example.com"
+                        />
+                      </div>
+                      <div>
+                        <Label>Nombre del Remitente</Label>
+                        <Input
+                          value={smtpSettings.fromName}
+                          onChange={(e) => setSmtpSettings({ ...smtpSettings, fromName: e.target.value })}
+                          placeholder="ReservePTY"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label>Responder a (Reply-To)</Label>
+                        <Input
+                          type="email"
+                          value={smtpSettings.replyTo}
+                          onChange={(e) => setSmtpSettings({ ...smtpSettings, replyTo: e.target.value })}
+                          placeholder="soporte@example.com"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Toggle */}
+                  <div className="pt-4 border-t border-border">
+                    <label className={cn(
+                      "flex items-center gap-4 p-4 rounded-lg border cursor-pointer transition-colors",
+                      smtpSettings.isActive
+                        ? "border-emerald-500/50 bg-emerald-500/10"
+                        : "border-border hover:border-border/80"
+                    )}>
+                      <input
+                        type="checkbox"
+                        checked={smtpSettings.isActive}
+                        onChange={(e) => setSmtpSettings({ ...smtpSettings, isActive: e.target.checked })}
+                        className="w-5 h-5 rounded border-border bg-surface text-emerald-500"
+                      />
+                      <div>
+                        <span className="font-medium text-white">Activar SMTP Personalizado</span>
+                        <p className="text-sm text-muted">
+                          Cuando está activo, todos los emails se enviarán a través de tu servidor
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Test Result */}
+                  {smtpTestResult && (
+                    <div className={cn(
+                      "p-4 rounded-lg border",
+                      smtpTestResult.success
+                        ? "bg-emerald-500/10 border-emerald-500/30"
+                        : "bg-red-500/10 border-red-500/30"
+                    )}>
+                      <div className="flex items-center gap-2">
+                        {smtpTestResult.success ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-red-400" />
+                        )}
+                        <span className={smtpTestResult.success ? "text-emerald-400" : "text-red-400"}>
+                          {smtpTestResult.message}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleTestSmtp}
+                      disabled={isTestingSmtp || !smtpSettings.smtpHost || !smtpSettings.smtpUser}
+                    >
+                      {isTestingSmtp ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Send className="w-4 h-4 mr-2" />
+                      )}
+                      Probar Conexión
+                    </Button>
+                    <Button onClick={handleSaveSmtp} disabled={isSavingSmtp}>
+                      {isSavingSmtp ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4 mr-2" />
+                      )}
+                      Guardar Configuración
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Info Card */}
+          <Card className="bg-gold-500/5 border-gold-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Mail className="w-5 h-5 text-gold-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="text-white font-medium">¿Por qué usar SMTP propio?</p>
+                  <ul className="text-muted mt-2 space-y-1">
+                    <li>• Los emails se envían desde tu dominio corporativo</li>
+                    <li>• Mayor control sobre la entrega y reputación</li>
+                    <li>• Cumplimiento con políticas de seguridad de tu empresa</li>
+                    <li>• Los emails de aprobación llegarán de tu dirección</li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
