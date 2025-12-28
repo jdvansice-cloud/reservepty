@@ -2,27 +2,35 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Accept an invitation
 export async function POST(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
+    // Await params in Next.js 14
+    const { token } = await params;
+    
+    if (!supabaseServiceKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY is not set');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
     const accessToken = authHeader.split(' ')[1];
-    const { token } = params;
     
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false }
     });
     
-    const supabaseAuth = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false }
     });
     
@@ -129,10 +137,16 @@ export async function POST(
 // Get invitation details by token (public, no auth required)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
-    const { token } = params;
+    // Await params in Next.js 14
+    const { token } = await params;
+    
+    if (!supabaseServiceKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY is not set');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
     
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false }

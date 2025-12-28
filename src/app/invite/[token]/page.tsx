@@ -1,141 +1,132 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/components/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, CheckCircle2, XCircle, Building2, Mail, Shield } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 
 interface InvitationData {
   id: string;
   email: string;
   role: string;
   expires_at: string;
-  organization: {
+  organizations?: {
     id: string;
     commercial_name: string | null;
     legal_name: string;
     logo_url: string | null;
-  };
-  inviter: {
-    first_name: string;
-    last_name: string;
-  };
+  } | null;
+  profiles?: {
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
 }
 
-export default function InviteAcceptPage() {
+function InviteContent() {
   const params = useParams();
-  const router = useRouter();
-  const { language } = useLanguage();
-  const { user, session } = useAuth();
-  const token = params.token as string;
-
+  const token = typeof params?.token === 'string' ? params.token : '';
+  
+  const [mounted, setMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ email: string } | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
+  // Handle client-side mounting
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Fetch invitation data
+  useEffect(() => {
+    if (!mounted || !token) return;
+
     const fetchInvitation = async () => {
       try {
-        const supabase = createClient();
-        
-        const { data, error } = await supabase
-          .from('invitations')
-          .select(`
-            id,
-            email,
-            role,
-            expires_at,
-            accepted_at,
-            organizations:organization_id (
-              id,
-              commercial_name,
-              legal_name,
-              logo_url
-            ),
-            profiles:invited_by (
-              first_name,
-              last_name
-            )
-          `)
-          .eq('token', token)
-          .single();
+        const response = await fetch(`/api/invitations/${token}`);
+        const data = await response.json();
 
-        if (error || !data) {
-          setError(language === 'es' 
-            ? 'Invitación no encontrada o inválida' 
-            : 'Invitation not found or invalid');
+        if (!response.ok || !data.invitation) {
+          setError(data.error || 'Invitation not found or invalid');
           setIsLoading(false);
           return;
         }
 
+        const inv = data.invitation;
+
         // Check if already accepted
-        if (data.accepted_at) {
-          setError(language === 'es' 
-            ? 'Esta invitación ya ha sido aceptada' 
-            : 'This invitation has already been accepted');
+        if (inv.accepted_at) {
+          setError('This invitation has already been accepted');
           setIsLoading(false);
           return;
         }
 
         // Check if expired
-        if (new Date(data.expires_at) < new Date()) {
-          setError(language === 'es' 
-            ? 'Esta invitación ha expirado' 
-            : 'This invitation has expired');
+        if (new Date(inv.expires_at) < new Date()) {
+          setError('This invitation has expired');
           setIsLoading(false);
           return;
         }
 
-        // Handle array response from Supabase join
-        const org = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
-        const inviter = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
-
-        setInvitation({
-          id: data.id,
-          email: data.email,
-          role: data.role,
-          expires_at: data.expires_at,
-          organization: org,
-          inviter: inviter,
-        });
+        setInvitation(inv);
         setIsLoading(false);
       } catch (err) {
         console.error('Error fetching invitation:', err);
-        setError(language === 'es' 
-          ? 'Error al cargar la invitación' 
-          : 'Error loading invitation');
+        setError('Error loading invitation');
         setIsLoading(false);
       }
     };
 
     fetchInvitation();
-  }, [token, language]);
+  }, [mounted, token]);
+
+  // Check if user is logged in (check for auth cookies)
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkAuth = async () => {
+      try {
+        // Try to get user info from Supabase client
+        const { createBrowserClient } = await import('@supabase/ssr');
+        const supabase = createBrowserClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user?.email) {
+          setCurrentUser({ email: session.user.email });
+          setAccessToken(session.access_token);
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+      }
+    };
+
+    checkAuth();
+  }, [mounted]);
 
   const handleAccept = async () => {
-    if (!invitation || !session?.access_token) return;
+    if (!invitation || !accessToken) return;
 
-    // Check if logged-in user's email matches invitation email
-    if (user?.email?.toLowerCase() !== invitation.email.toLowerCase()) {
-      setError(language === 'es'
-        ? `Esta invitación es para ${invitation.email}. Por favor inicia sesión con esa cuenta.`
-        : `This invitation is for ${invitation.email}. Please sign in with that account.`);
+    if (currentUser?.email?.toLowerCase() !== invitation.email.toLowerCase()) {
+      setError(`This invitation is for ${invitation.email}. Please sign in with that account.`);
       return;
     }
 
     setIsAccepting(true);
 
     try {
-      const response = await fetch(`/api/invitations/${token}/accept`, {
+      const response = await fetch(`/api/invitations/${token}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
@@ -150,33 +141,43 @@ export default function InviteAcceptPage() {
       
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }, 2000);
       
     } catch (err: any) {
-      setError(err.message || (language === 'es' 
-        ? 'Error al aceptar la invitación' 
-        : 'Error accepting invitation'));
+      setError(err.message || 'Error accepting invitation');
       setIsAccepting(false);
     }
   };
 
-  const roleLabels: Record<string, { es: string; en: string }> = {
-    owner: { es: 'Propietario', en: 'Owner' },
-    admin: { es: 'Administrador', en: 'Admin' },
-    manager: { es: 'Gerente', en: 'Manager' },
-    member: { es: 'Miembro', en: 'Member' },
-    viewer: { es: 'Observador', en: 'Viewer' },
+  const getOrgName = () => {
+    if (!invitation?.organizations) return 'Organization';
+    return invitation.organizations.commercial_name || invitation.organizations.legal_name || 'Organization';
   };
 
-  if (isLoading) {
+  const getInviterName = () => {
+    if (!invitation?.profiles) return 'A team member';
+    const first = invitation.profiles.first_name || '';
+    const last = invitation.profiles.last_name || '';
+    const fullName = `${first} ${last}`.trim();
+    return fullName || 'A team member';
+  };
+
+  const roleLabels: Record<string, string> = {
+    owner: 'Owner',
+    admin: 'Admin',
+    manager: 'Manager',
+    member: 'Member',
+    viewer: 'Viewer',
+  };
+
+  // Show loading while not mounted or still loading
+  if (!mounted || isLoading) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-gold-500 mx-auto mb-4" />
-          <p className="text-muted">
-            {language === 'es' ? 'Cargando invitación...' : 'Loading invitation...'}
-          </p>
+          <p className="text-gray-400">Loading invitation...</p>
         </div>
       </div>
     );
@@ -185,18 +186,16 @@ export default function InviteAcceptPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full bg-navy-800 border-navy-700">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center mb-6">
               <XCircle className="w-8 h-8 text-red-400" />
             </div>
-            <h1 className="text-xl font-display font-semibold text-white mb-2">
-              {language === 'es' ? 'Invitación Inválida' : 'Invalid Invitation'}
-            </h1>
-            <p className="text-muted mb-6">{error}</p>
+            <h1 className="text-xl font-semibold text-white mb-2">Invalid Invitation</h1>
+            <p className="text-gray-400 mb-6">{error}</p>
             <Link href="/login">
-              <Button className="w-full">
-                {language === 'es' ? 'Ir a Iniciar Sesión' : 'Go to Login'}
+              <Button className="w-full bg-gold-500 hover:bg-gold-400 text-navy-950">
+                Go to Login
               </Button>
             </Link>
           </CardContent>
@@ -208,22 +207,35 @@ export default function InviteAcceptPage() {
   if (success) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full bg-navy-800 border-navy-700">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-500/10 mx-auto flex items-center justify-center mb-6">
               <CheckCircle2 className="w-8 h-8 text-emerald-400" />
             </div>
-            <h1 className="text-xl font-display font-semibold text-white mb-2">
-              {language === 'es' ? '¡Bienvenido!' : 'Welcome!'}
-            </h1>
-            <p className="text-muted mb-4">
-              {language === 'es' 
-                ? `Te has unido a ${invitation?.organization.commercial_name || invitation?.organization.legal_name}` 
-                : `You've joined ${invitation?.organization.commercial_name || invitation?.organization.legal_name}`}
-            </p>
-            <p className="text-sm text-muted">
-              {language === 'es' ? 'Redirigiendo al panel...' : 'Redirecting to dashboard...'}
-            </p>
+            <h1 className="text-xl font-semibold text-white mb-2">Welcome!</h1>
+            <p className="text-gray-400 mb-4">You&apos;ve joined {getOrgName()}</p>
+            <p className="text-sm text-gray-500">Redirecting to dashboard...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!invitation) {
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full bg-navy-800 border-navy-700">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 mx-auto flex items-center justify-center mb-6">
+              <XCircle className="w-8 h-8 text-red-400" />
+            </div>
+            <h1 className="text-xl font-semibold text-white mb-2">Invitation Not Found</h1>
+            <p className="text-gray-400 mb-6">We could not find this invitation.</p>
+            <Link href="/login">
+              <Button className="w-full bg-gold-500 hover:bg-gold-400 text-navy-950">
+                Go to Login
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -232,24 +244,24 @@ export default function InviteAcceptPage() {
 
   return (
     <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
-      <Card className="max-w-md w-full">
+      <Card className="max-w-md w-full bg-navy-800 border-navy-700">
         <CardContent className="p-8">
           {/* Logo */}
           <div className="flex items-center justify-center gap-2 mb-8">
             <div className="w-10 h-10 bg-gold-500 rounded-lg flex items-center justify-center">
-              <span className="text-navy-950 font-display font-bold text-xl">R</span>
+              <span className="text-navy-950 font-bold text-xl">R</span>
             </div>
-            <span className="font-display text-2xl font-semibold text-white">
+            <span className="text-2xl font-semibold text-white">
               Reserve<span className="text-gold-500">PTY</span>
             </span>
           </div>
 
           {/* Organization info */}
           <div className="text-center mb-8">
-            {invitation?.organization.logo_url ? (
+            {invitation.organizations?.logo_url ? (
               <img 
-                src={invitation.organization.logo_url} 
-                alt={invitation.organization.commercial_name || invitation.organization.legal_name}
+                src={invitation.organizations.logo_url} 
+                alt={getOrgName()}
                 className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4"
               />
             ) : (
@@ -257,62 +269,54 @@ export default function InviteAcceptPage() {
                 <Building2 className="w-10 h-10 text-gold-500" />
               </div>
             )}
-            <h1 className="text-xl font-display font-semibold text-white mb-2">
-              {language === 'es' ? 'Te han invitado a unirte' : "You've been invited to join"}
+            <h1 className="text-xl font-semibold text-white mb-2">
+              You&apos;ve been invited to join
             </h1>
             <p className="text-lg text-gold-500 font-medium">
-              {invitation?.organization.commercial_name || invitation?.organization.legal_name}
+              {getOrgName()}
             </p>
           </div>
 
           {/* Invitation details */}
           <div className="space-y-4 mb-8">
-            <div className="flex items-center gap-3 p-3 bg-surface rounded-lg">
-              <Mail className="w-5 h-5 text-muted" />
+            <div className="flex items-center gap-3 p-3 bg-navy-900 rounded-lg">
+              <Mail className="w-5 h-5 text-gray-400" />
               <div>
-                <p className="text-xs text-muted">
-                  {language === 'es' ? 'Invitado por' : 'Invited by'}
-                </p>
-                <p className="text-sm text-white">
-                  {invitation?.inviter.first_name} {invitation?.inviter.last_name}
-                </p>
+                <p className="text-xs text-gray-500">Invited by</p>
+                <p className="text-sm text-white">{getInviterName()}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-surface rounded-lg">
-              <Shield className="w-5 h-5 text-muted" />
+            <div className="flex items-center gap-3 p-3 bg-navy-900 rounded-lg">
+              <Shield className="w-5 h-5 text-gray-400" />
               <div>
-                <p className="text-xs text-muted">
-                  {language === 'es' ? 'Tu rol será' : 'Your role will be'}
-                </p>
+                <p className="text-xs text-gray-500">Your role will be</p>
                 <p className="text-sm text-white capitalize">
-                  {roleLabels[invitation?.role || 'member']?.[language] || invitation?.role}
+                  {roleLabels[invitation.role] || invitation.role}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          {user ? (
+          {currentUser ? (
             <div className="space-y-3">
-              {user.email?.toLowerCase() === invitation?.email.toLowerCase() ? (
+              {currentUser.email?.toLowerCase() === invitation.email.toLowerCase() ? (
                 <Button 
-                  className="w-full" 
-                  size="lg" 
+                  className="w-full bg-gold-500 hover:bg-gold-400 text-navy-950" 
                   onClick={handleAccept}
-                  loading={isAccepting}
+                  disabled={isAccepting}
                 >
-                  {language === 'es' ? 'Aceptar Invitación' : 'Accept Invitation'}
+                  {isAccepting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                  Accept Invitation
                 </Button>
               ) : (
                 <div className="text-center">
                   <p className="text-sm text-amber-400 mb-4">
-                    {language === 'es' 
-                      ? `Estás conectado como ${user.email}. Esta invitación es para ${invitation?.email}.`
-                      : `You're signed in as ${user.email}. This invitation is for ${invitation?.email}.`}
+                    You&apos;re signed in as {currentUser.email}. This invitation is for {invitation.email}.
                   </p>
                   <Link href="/login">
                     <Button variant="secondary" className="w-full">
-                      {language === 'es' ? 'Cambiar Cuenta' : 'Switch Account'}
+                      Switch Account
                     </Button>
                   </Link>
                 </div>
@@ -320,27 +324,41 @@ export default function InviteAcceptPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <Link href={`/signup?email=${encodeURIComponent(invitation?.email || '')}&invite=${token}`}>
-                <Button className="w-full" size="lg">
-                  {language === 'es' ? 'Crear Cuenta y Unirse' : 'Create Account & Join'}
+              <Link href={`/signup?email=${encodeURIComponent(invitation.email)}&invite=${token}`}>
+                <Button className="w-full bg-gold-500 hover:bg-gold-400 text-navy-950">
+                  Create Account & Join
                 </Button>
               </Link>
               <Link href={`/login?redirect=/invite/${token}`}>
-                <Button variant="secondary" className="w-full" size="lg">
-                  {language === 'es' ? 'Ya tengo cuenta' : 'I already have an account'}
+                <Button variant="secondary" className="w-full border-navy-600 text-white hover:bg-navy-700">
+                  I already have an account
                 </Button>
               </Link>
             </div>
           )}
 
           {/* Expiry notice */}
-          <p className="text-xs text-muted text-center mt-6">
-            {language === 'es' 
-              ? `Esta invitación expira el ${new Date(invitation?.expires_at || '').toLocaleDateString('es-ES', { dateStyle: 'long' })}`
-              : `This invitation expires on ${new Date(invitation?.expires_at || '').toLocaleDateString('en-US', { dateStyle: 'long' })}`}
+          <p className="text-xs text-gray-500 text-center mt-6">
+            This invitation expires on {new Date(invitation.expires_at).toLocaleDateString('en-US', { dateStyle: 'long' })}
           </p>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Wrap in Suspense for safety
+export default function InviteAcceptPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-gold-500 mx-auto mb-4" />
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <InviteContent />
+    </Suspense>
   );
 }
