@@ -362,40 +362,6 @@ export default function PortalLayout({
                 <Crown className="w-4 h-4 text-gold-400" />
               </Link>
             )}
-
-            {/* Language toggle */}
-            <div className="px-3 py-2">
-              <p className="text-xs text-muted mb-2 flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5" />
-                {t('nav.language')}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setLanguage('es')}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                    language === 'es'
-                      ? "bg-gold-500/20 text-gold-400 border border-gold-500/40"
-                      : "text-white/70 border border-white/10 hover:bg-white/5"
-                  )}
-                >
-                  {language === 'es' && <Check className="w-3 h-3" />}
-                  Español
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors",
-                    language === 'en'
-                      ? "bg-gold-500/20 text-gold-400 border border-gold-500/40"
-                      : "text-white/70 border border-white/10 hover:bg-white/5"
-                  )}
-                >
-                  {language === 'en' && <Check className="w-3 h-3" />}
-                  English
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </aside>

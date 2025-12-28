@@ -15,7 +15,6 @@ import {
   Users,
   TrendingUp,
   Clock,
-  Plus,
   ArrowRight,
   CheckCircle2,
   XCircle,
@@ -81,12 +80,6 @@ const mockRecentBookings = [
     endDate: new Date(Date.now() - 86400000 + 14400000),
     status: 'completed',
   },
-];
-
-const quickActions = [
-  { name: 'New Booking', href: '/calendar', icon: Calendar, description: 'Schedule an asset' },
-  { name: 'Add Asset', href: '/assets/new', icon: Plus, description: 'Register new asset' },
-  { name: 'Invite Member', href: '/members/invite', icon: Users, description: 'Add team members' },
 ];
 
 export default function DashboardPage() {
@@ -261,135 +254,60 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
-        {/* Recent Bookings */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-4 px-4 md:px-6">
-              <CardTitle className="text-base md:text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
-              <Link href="/calendar">
-                <Button variant="ghost" size="sm" className="text-xs md:text-sm">
-                  {language === 'es' ? 'Ver todo' : 'View all'}
-                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4 ml-1" />
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {mockRecentBookings.map((booking) => {
-                  const Icon = SECTION_ICONS[booking.section];
-                  const StatusIcon = getStatusIcon(booking.status);
-                  const sectionInfo = SECTIONS[booking.section as keyof typeof SECTIONS];
-                  return (
-                    <div
-                      key={booking.id}
-                      className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 hover:bg-surface transition-colors"
-                    >
-                      <div
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: `${sectionInfo?.color}20` }}
-                      >
-                        <Icon
-                          className="w-4 h-4 md:w-5 md:h-5"
-                          style={{ color: sectionInfo?.color }}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
-                          {booking.assetName}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {booking.userName} • {formatDate(booking.startDate)}
-                        </p>
-                      </div>
-                      <div
-                        className={cn(
-                          'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize',
-                          getStatusColor(booking.status)
-                        )}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {t(`bookings.status.${booking.status}`)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div>
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-display">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {quickActions.map((action) => (
-                <Link key={action.name} href={action.href}>
-                  <div className="flex items-center gap-4 p-4 rounded-xl bg-surface hover:bg-navy-800 transition-all group cursor-pointer">
-                    <div className="w-10 h-10 rounded-lg bg-gold-500/10 flex items-center justify-center group-hover:bg-gold-500/20 transition-colors">
-                      <action.icon className="w-5 h-5 text-gold-500" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white group-hover:text-gold-500 transition-colors">
-                        {action.name}
-                      </p>
-                      <p className="text-xs text-muted">{action.description}</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted group-hover:text-gold-500 group-hover:translate-x-1 transition-all" />
-                  </div>
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Organization Info */}
-          {organization && (
-            <Card className="mt-6">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-lg font-display">Organization</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  {organization.logo_url ? (
-                    <img
-                      src={organization.logo_url}
-                      alt={organization.commercial_name || organization.legal_name}
-                      className="w-14 h-14 rounded-xl object-cover"
+      {/* Recent Bookings - Full Width */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-4 px-4 md:px-6">
+          <CardTitle className="text-base md:text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
+          <Link href="/calendar">
+            <Button variant="ghost" size="sm" className="text-xs md:text-sm">
+              {language === 'es' ? 'Ver todo' : 'View all'}
+              <ArrowRight className="w-3 h-3 md:w-4 md:h-4 ml-1" />
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y divide-border">
+            {mockRecentBookings.map((booking) => {
+              const Icon = SECTION_ICONS[booking.section];
+              const StatusIcon = getStatusIcon(booking.status);
+              const sectionInfo = SECTIONS[booking.section as keyof typeof SECTIONS];
+              return (
+                <div
+                  key={booking.id}
+                  className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 hover:bg-surface transition-colors"
+                >
+                  <div
+                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: `${sectionInfo?.color}20` }}
+                  >
+                    <Icon
+                      className="w-4 h-4 md:w-5 md:h-5"
+                      style={{ color: sectionInfo?.color }}
                     />
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-gold-500/20 flex items-center justify-center">
-                      <span className="text-gold-500 font-display text-2xl font-bold">
-                        {(organization.commercial_name || organization.legal_name).charAt(0)}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-medium text-white">
-                      {organization.commercial_name || organization.legal_name}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">
+                      {booking.assetName}
                     </p>
-                    {organization.ruc && (
-                      <p className="text-xs text-muted mt-0.5">
-                        RUC: {organization.ruc}
-                        {organization.dv && `-${organization.dv}`}
-                      </p>
+                    <p className="text-xs text-muted">
+                      {booking.userName} • {formatDate(booking.startDate)}
+                    </p>
+                  </div>
+                  <div
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize',
+                      getStatusColor(booking.status)
                     )}
+                  >
+                    <StatusIcon className="w-3.5 h-3.5" />
+                    {t(`bookings.status.${booking.status}`)}
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <Link href="/settings">
-                    <Button variant="secondary" size="sm" className="w-full">
-                      Manage Settings
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
