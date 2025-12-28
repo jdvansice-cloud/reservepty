@@ -27,32 +27,32 @@ import {
 interface Airport {
   id: string;
   icao_code: string;
-  iata_code: string | null;
+  iata_code?: string;
   name: string;
-  city: string | null;
+  city?: string;
   country: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface Heliport {
   id: string;
   icao_code: string;
   name: string;
-  city: string | null;
+  city?: string;
   country: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface Port {
   id: string;
-  code: string | null;
+  code?: string;
   name: string;
-  city: string | null;
+  city?: string;
   country: string;
-  latitude: number | null;
-  longitude: number | null;
+  latitude?: number;
+  longitude?: number;
 }
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
