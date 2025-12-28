@@ -69,9 +69,9 @@ const config: Config = {
         'noise': "url('/images/noise.png')",
       },
       animation: {
-        'fade-in': 'fadeIn 0.5s ease-out',
-        'fade-up': 'fadeUp 0.5s ease-out',
-        'slide-in': 'slideIn 0.3s ease-out',
+        'fade-in': 'fadeIn 0.5s ease-out forwards',
+        'fade-up': 'fadeUp 0.6s ease-out both',
+        'slide-in': 'slideIn 0.3s ease-out forwards',
         'glow-pulse': 'glowPulse 2s ease-in-out infinite',
         'shimmer': 'shimmer 2s linear infinite',
       },
