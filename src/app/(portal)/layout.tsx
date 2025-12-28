@@ -221,7 +221,7 @@ export default function PortalLayout({
   };
 
   return (
-    <div className="min-h-screen bg-navy-950 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-navy-950 flex flex-col lg:flex-row overflow-x-hidden">
       {/* Mobile/Tablet: Slide-out menu overlay */}
       <div
         className={cn(
@@ -363,28 +363,6 @@ export default function PortalLayout({
               </Link>
             )}
 
-            {/* User profile button */}
-            <button
-              onClick={() => {
-                setSidebarOpen(false);
-                setShowProfileModal(true);
-              }}
-              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 active:bg-white/10 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-full bg-gold-500/20 flex items-center justify-center">
-                <span className="text-gold-500 font-semibold text-sm">
-                  {getUserInitials()}
-                </span>
-              </div>
-              <div className="flex-1 text-left min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {getUserDisplayName()}
-                </p>
-                <p className="text-xs text-muted truncate">{user.email}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted" />
-            </button>
-
             {/* Language toggle */}
             <div className="px-3 py-2">
               <p className="text-xs text-muted mb-2 flex items-center gap-2">
@@ -418,21 +396,12 @@ export default function PortalLayout({
                 </button>
               </div>
             </div>
-
-            {/* Sign out */}
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              {t('nav.signOut')}
-            </button>
           </div>
         </div>
       </aside>
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen w-full max-w-full">
         {/* Top header */}
         <header className="sticky top-0 z-30 h-14 md:h-16 bg-navy-900/80 backdrop-blur-xl border-b border-border flex items-center px-4 md:px-6 gap-3 pt-safe">
           {/* Burger menu (mobile/tablet) */}
@@ -560,13 +529,13 @@ export default function PortalLayout({
         </header>
 
         {/* Page content - with bottom padding for mobile nav */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 lg:pb-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-24 lg:pb-6">
           {children}
         </main>
 
         {/* Bottom Navigation Bar - Mobile/Tablet only */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-navy-900/95 backdrop-blur-xl border-t border-border pb-safe">
-          <div className="flex items-stretch h-16">
+          <div className="flex items-center justify-around h-16 px-2">
             {bottomNavigation.map((item) => {
               const isActive = item.action !== 'profile' && 
                 (pathname === item.href || pathname.startsWith(item.href + '/'));
@@ -576,7 +545,7 @@ export default function PortalLayout({
                   <button
                     key={item.href}
                     onClick={() => handleBottomNavClick(item)}
-                    className="flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-colors active:bg-white/5"
+                    className="flex flex-col items-center justify-center gap-1 py-2 px-4 min-w-[64px] transition-colors active:bg-white/5 rounded-xl"
                   >
                     <div className="w-7 h-7 rounded-full bg-gold-500/20 flex items-center justify-center">
                       <span className="text-gold-500 font-semibold text-[10px]">
@@ -595,7 +564,7 @@ export default function PortalLayout({
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "relative flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-colors active:bg-white/5",
+                    "relative flex flex-col items-center justify-center gap-1 py-2 px-4 min-w-[64px] transition-colors active:bg-white/5 rounded-xl",
                     isActive ? "text-gold-500" : "text-muted"
                   )}
                 >
@@ -732,6 +701,17 @@ export default function PortalLayout({
                     )}
                     {t('common.save')}
                   </Button>
+                </div>
+
+                {/* Sign Out */}
+                <div className="pt-4 border-t border-border">
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    {t('nav.signOut')}
+                  </button>
                 </div>
               </CardContent>
             </div>

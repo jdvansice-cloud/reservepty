@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   ArrowLeft,
   Edit,
@@ -82,6 +83,7 @@ const mockAsset = {
 export default function AssetDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { t, language } = useLanguage();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -153,12 +155,12 @@ export default function AssetDetailPage() {
           <Link href={`/assets/${asset.id}/edit`}>
             <Button variant="secondary">
               <Edit className="w-4 h-4 mr-2" />
-              Edit
+              {t('common.edit')}
             </Button>
           </Link>
           <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
             <Trash2 className="w-4 h-4 mr-2" />
-            Delete
+            {t('common.delete')}
           </Button>
         </div>
       </div>
@@ -234,10 +236,12 @@ export default function AssetDetailPage() {
           {/* Upcoming Bookings */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-display">Upcoming Bookings</CardTitle>
+              <CardTitle className="text-lg font-display">
+                {language === 'es' ? 'Próximas Reservas' : 'Upcoming Bookings'}
+              </CardTitle>
               <Link href={`/calendar?asset=${asset.id}`}>
                 <Button variant="ghost" size="sm">
-                  View Calendar
+                  {language === 'es' ? 'Ver Calendario' : 'View Calendar'}
                 </Button>
               </Link>
             </CardHeader>
@@ -245,7 +249,7 @@ export default function AssetDetailPage() {
               {asset.upcomingBookings.length === 0 ? (
                 <div className="p-6 text-center">
                   <Calendar className="w-8 h-8 text-muted mx-auto mb-2" />
-                  <p className="text-muted">No upcoming bookings</p>
+                  <p className="text-muted">{language === 'es' ? 'Sin reservas próximas' : 'No upcoming bookings'}</p>
                 </div>
               ) : (
                 <div className="divide-y divide-border">
@@ -270,7 +274,7 @@ export default function AssetDetailPage() {
                             : 'text-amber-400 bg-amber-400/10'
                         )}
                       >
-                        {booking.status}
+                        {t(`bookings.status.${booking.status}`)}
                       </div>
                     </div>
                   ))}
@@ -288,7 +292,7 @@ export default function AssetDetailPage() {
               <Link href={`/calendar?asset=${asset.id}`}>
                 <Button className="w-full" size="lg">
                   <Calendar className="w-5 h-5 mr-2" />
-                  Book This Asset
+                  {language === 'es' ? 'Reservar Este Activo' : 'Book This Asset'}
                 </Button>
               </Link>
             </CardContent>
@@ -297,7 +301,9 @@ export default function AssetDetailPage() {
           {/* Specifications */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-display">Specifications</CardTitle>
+              <CardTitle className="text-lg font-display">
+                {language === 'es' ? 'Especificaciones' : 'Specifications'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
@@ -398,11 +404,12 @@ export default function AssetDetailPage() {
                 <AlertTriangle className="w-8 h-8 text-red-400" />
               </div>
               <h3 className="text-xl font-display font-semibold text-white mb-2">
-                Delete Asset?
+                {language === 'es' ? '¿Eliminar Activo?' : 'Delete Asset?'}
               </h3>
               <p className="text-muted mb-6">
-                Are you sure you want to delete "{asset.name}"? This action cannot be undone
-                and will cancel all upcoming bookings.
+                {language === 'es' 
+                  ? `¿Estás seguro de que deseas eliminar "${asset.name}"? Esta acción no se puede deshacer y cancelará todas las reservas pendientes.`
+                  : `Are you sure you want to delete "${asset.name}"? This action cannot be undone and will cancel all upcoming bookings.`}
               </p>
               <div className="flex gap-3">
                 <Button
@@ -410,10 +417,10 @@ export default function AssetDetailPage() {
                   className="flex-1"
                   onClick={() => setShowDeleteConfirm(false)}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button variant="danger" className="flex-1" onClick={handleDelete}>
-                  Delete Asset
+                  {language === 'es' ? 'Eliminar Activo' : 'Delete Asset'}
                 </Button>
               </div>
             </CardContent>

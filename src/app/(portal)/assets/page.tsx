@@ -278,7 +278,7 @@ export default function AssetsPage() {
                     }}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    {sectionInfo?.label}
+                    {t(`assets.section.${asset.section}`)}
                   </div>
 
                   {/* Status Badge */}
@@ -288,7 +288,7 @@ export default function AssetsPage() {
                       getStatusColor(asset.is_active)
                     )}
                   >
-                    {asset.is_active ? 'Active' : 'Inactive'}
+                    {asset.is_active ? t('common.active') : t('common.inactive')}
                   </div>
 
                   {/* Actions */}
@@ -317,7 +317,7 @@ export default function AssetsPage() {
                     </p>
                   )}
                   <p className="text-sm text-muted mt-1 line-clamp-2">
-                    {asset.description || 'No description'}
+                    {asset.description || (language === 'es' ? 'Sin descripción' : 'No description')}
                   </p>
 
                   <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-sm text-muted">
@@ -334,7 +334,7 @@ export default function AssetsPage() {
                   <Link href={`/calendar?asset=${asset.id}`}>
                     <Button variant="secondary" size="sm" className="w-full mt-4">
                       <Calendar className="w-4 h-4 mr-2" />
-                      Book Now
+                      {language === 'es' ? 'Reservar' : 'Book Now'}
                     </Button>
                   </Link>
                 </CardContent>

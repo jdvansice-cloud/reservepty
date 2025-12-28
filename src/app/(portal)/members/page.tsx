@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn, ROLES } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   Plus,
   Search,
@@ -117,6 +118,7 @@ const mockTiers = [
 ];
 
 export default function MembersPage() {
+  const { t, language } = useLanguage();
   const [search, setSearch] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,15 +160,19 @@ export default function MembersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Members</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">
+            {language === 'es' ? 'Miembros' : 'Members'}
+          </h1>
           <p className="text-muted mt-1">
-            Manage your organization's members and their access levels
+            {language === 'es' 
+              ? 'Gestiona los miembros de tu organización y sus niveles de acceso'
+              : "Manage your organization's members and their access levels"}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button onClick={() => setShowInviteModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Invite Member
+            {language === 'es' ? 'Invitar Miembro' : 'Invite Member'}
           </Button>
         </div>
       </div>
@@ -199,7 +205,7 @@ export default function MembersPage() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
         <Input
           type="text"
-          placeholder="Search members..."
+          placeholder={language === 'es' ? 'Buscar miembros...' : 'Search members...'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10"
@@ -210,7 +216,7 @@ export default function MembersPage() {
       <Card>
         <CardHeader className="pb-0">
           <CardTitle className="text-lg font-display">
-            Active Members ({filteredMembers.length})
+            {language === 'es' ? 'Miembros Activos' : 'Active Members'} ({filteredMembers.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -350,7 +356,9 @@ export default function MembersPage() {
           />
           <Card className="relative max-w-md w-full animate-fade-up">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">Invite Member</CardTitle>
+              <CardTitle className="text-xl font-display">
+                {language === 'es' ? 'Invitar Miembro' : 'Invite Member'}
+              </CardTitle>
               <button
                 onClick={() => setShowInviteModal(false)}
                 className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
@@ -360,10 +368,10 @@ export default function MembersPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Email Address</Label>
+                <Label>{language === 'es' ? 'Correo Electrónico' : 'Email Address'}</Label>
                 <Input
                   type="email"
-                  placeholder="member@example.com"
+                  placeholder={language === 'es' ? 'miembro@ejemplo.com' : 'member@example.com'}
                   value={inviteForm.email}
                   onChange={(e) =>
                     setInviteForm((prev) => ({ ...prev, email: e.target.value }))
@@ -372,7 +380,7 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <Label>Role</Label>
+                <Label>{language === 'es' ? 'Rol' : 'Role'}</Label>
                 <select
                   value={inviteForm.role}
                   onChange={(e) =>
@@ -391,7 +399,7 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <Label>Tier</Label>
+                <Label>{language === 'es' ? 'Nivel' : 'Tier'}</Label>
                 <select
                   value={inviteForm.tierId}
                   onChange={(e) =>
@@ -399,10 +407,10 @@ export default function MembersPage() {
                   }
                   className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
                 >
-                  <option value="">Select a tier...</option>
+                  <option value="">{language === 'es' ? 'Seleccionar nivel...' : 'Select a tier...'}</option>
                   {mockTiers.map((tier) => (
                     <option key={tier.id} value={tier.id}>
-                      {tier.name} (Priority {tier.priority})
+                      {tier.name} ({language === 'es' ? 'Prioridad' : 'Priority'} {tier.priority})
                     </option>
                   ))}
                 </select>
@@ -414,7 +422,7 @@ export default function MembersPage() {
                   className="flex-1"
                   onClick={() => setShowInviteModal(false)}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   className="flex-1"
@@ -424,12 +432,12 @@ export default function MembersPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Sending...
+                      {language === 'es' ? 'Enviando...' : 'Sending...'}
                     </>
                   ) : (
                     <>
                       <Mail className="w-4 h-4 mr-2" />
-                      Send Invite
+                      {language === 'es' ? 'Enviar Invitación' : 'Send Invite'}
                     </>
                   )}
                 </Button>

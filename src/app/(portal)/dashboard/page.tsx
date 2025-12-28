@@ -138,14 +138,14 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 md:space-y-8 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-display font-bold text-white">
             {greeting}, {profile?.first_name || (language === 'es' ? 'usuario' : 'there')}
           </h1>
-          <p className="text-muted mt-1">
+          <p className="text-sm sm:text-base text-muted mt-1">
             {language === 'es' 
               ? 'Esto es lo que está pasando con tus activos hoy.'
               : "Here's what's happening with your assets today."}
@@ -154,29 +154,29 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card className="card-hover">
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">{t('dashboard.totalAssets')}</p>
-                <p className="text-3xl font-display font-bold text-white mt-1">
+                <p className="text-xs sm:text-sm text-muted">{t('dashboard.totalAssets')}</p>
+                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
                   {mockStats.totalAssets}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-gold-500/10 flex items-center justify-center">
-                <Plane className="w-6 h-6 text-gold-500" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gold-500/10 flex items-center justify-center">
+                <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-gold-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="card-hover">
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">{t('dashboard.activeBookings')}</p>
-                <p className="text-3xl font-display font-bold text-white mt-1">
+                <p className="text-xs sm:text-sm text-muted">{t('dashboard.activeBookings')}</p>
+                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
                   {mockStats.activeBookings}
                 </p>
               </div>
@@ -188,32 +188,32 @@ export default function DashboardPage() {
         </Card>
 
         <Card className="card-hover">
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">{t('dashboard.totalMembers')}</p>
-                <p className="text-3xl font-display font-bold text-white mt-1">
+                <p className="text-xs sm:text-sm text-muted">{t('dashboard.totalMembers')}</p>
+                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
                   {mockStats.totalMembers}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-500" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="card-hover">
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">{language === 'es' ? 'Este Mes' : 'This Month'}</p>
-                <p className="text-3xl font-display font-bold text-white mt-1">
+                <p className="text-xs sm:text-sm text-muted">{language === 'es' ? 'Este Mes' : 'This Month'}</p>
+                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
                   {mockStats.thisMonthBookings}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-purple-500" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
               </div>
             </div>
           </CardContent>
@@ -221,37 +221,37 @@ export default function DashboardPage() {
       </div>
 
       {/* Section Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {mockSectionStats.map((stat) => {
           const Icon = SECTION_ICONS[stat.section];
           const sectionInfo = SECTIONS[stat.section as keyof typeof SECTIONS];
           return (
             <Link key={stat.section} href={`/assets?section=${stat.section}`}>
               <Card className="card-hover h-full">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-3">
+                <CardContent className="p-3 sm:p-5">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: `${sectionInfo?.color}20` }}
                     >
                       <Icon
-                        className="w-5 h-5"
+                        className="w-4 h-4 sm:w-5 sm:h-5"
                         style={{ color: sectionInfo?.color }}
                       />
                     </div>
-                    <div>
-                      <p className="text-sm text-muted capitalize">{t(`assets.section.${stat.section}`)}</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xl font-display font-bold text-white">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm text-muted capitalize truncate">{t(`assets.section.${stat.section}`)}</p>
+                      <div className="flex items-baseline gap-1 sm:gap-2">
+                        <span className="text-lg sm:text-xl font-display font-bold text-white">
                           {stat.count}
                         </span>
-                        <span className="text-xs text-muted">{language === 'es' ? 'activos' : 'assets'}</span>
+                        <span className="text-[10px] sm:text-xs text-muted">{language === 'es' ? 'activos' : 'assets'}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs text-muted">
-                      <span className="text-white font-medium">{stat.bookings}</span> {language === 'es' ? 'reservas este mes' : 'bookings this month'}
+                  <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-border">
+                    <p className="text-[10px] sm:text-xs text-muted truncate">
+                      <span className="text-white font-medium">{stat.bookings}</span> {language === 'es' ? 'reservas' : 'bookings'}
                     </p>
                   </div>
                 </CardContent>
@@ -261,16 +261,16 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
         {/* Recent Bookings */}
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <CardTitle className="text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-4 px-4 md:px-6">
+              <CardTitle className="text-base md:text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
               <Link href="/calendar">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" className="text-xs md:text-sm">
                   {language === 'es' ? 'Ver todo' : 'View all'}
-                  <ArrowRight className="w-4 h-4 ml-1" />
+                  <ArrowRight className="w-3 h-3 md:w-4 md:h-4 ml-1" />
                 </Button>
               </Link>
             </CardHeader>
@@ -283,14 +283,14 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={booking.id}
-                      className="px-6 py-4 flex items-center gap-4 hover:bg-surface transition-colors"
+                      className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 hover:bg-surface transition-colors"
                     >
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: `${sectionInfo?.color}20` }}
                       >
                         <Icon
-                          className="w-5 h-5"
+                          className="w-4 h-4 md:w-5 md:h-5"
                           style={{ color: sectionInfo?.color }}
                         />
                       </div>

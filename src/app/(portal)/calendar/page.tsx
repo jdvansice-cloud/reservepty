@@ -1201,14 +1201,14 @@ export default function CalendarPage() {
 
       {/* Booking Modal */}
       {showBookingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowBookingModal(false)}
           />
-          <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">{t('calendar.newBooking')}</CardTitle>
+          <Card className="relative w-full sm:max-w-lg animate-slide-up sm:animate-fade-up max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
+            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-navy-900 z-10 border-b border-border">
+              <CardTitle className="text-lg sm:text-xl font-display">{t('calendar.newBooking')}</CardTitle>
               <button
                 onClick={() => setShowBookingModal(false)}
                 className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
@@ -1216,7 +1216,7 @@ export default function CalendarPage() {
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pb-6">
               {assets.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-muted mb-4">{language === 'es' ? 'No hay activos disponibles. Agrega un activo primero.' : 'No assets available. Add an asset first.'}</p>
@@ -1228,7 +1228,7 @@ export default function CalendarPage() {
                 <>
                   {/* Asset Selection */}
                   <div>
-                    <Label>{language === 'es' ? 'Seleccionar Activo *' : 'Select Asset *'}</Label>
+                    <Label className="text-sm">{language === 'es' ? 'Seleccionar Activo *' : 'Select Asset *'}</Label>
                     <select
                       value={bookingForm.assetId}
                       onChange={(e) => {
@@ -1249,7 +1249,7 @@ export default function CalendarPage() {
                           setBookingForm((prev) => ({ ...prev, assetId: selectedId }));
                         }
                       }}
-                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
+                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500 text-sm sm:text-base"
                     >
                       <option value="">{language === 'es' ? 'Seleccionar un activo...' : 'Choose an asset...'}</option>
                       {assets.map((asset) => (
@@ -1269,20 +1269,21 @@ export default function CalendarPage() {
 
                   {/* Title */}
                   <div>
-                    <Label>{language === 'es' ? 'Título de la Reserva' : 'Booking Title'}</Label>
+                    <Label className="text-sm">{language === 'es' ? 'Título de la Reserva' : 'Booking Title'}</Label>
                     <Input
                       placeholder={language === 'es' ? 'Ej: Vacaciones familiares, Viaje de negocios' : 'e.g., Family vacation, Business trip'}
                       value={bookingForm.title}
                       onChange={(e) =>
                         setBookingForm((prev) => ({ ...prev, title: e.target.value }))
                       }
+                      className="text-sm sm:text-base"
                     />
                   </div>
 
                   {/* Date Selection */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <Label>
+                      <Label className="text-sm">
                         {selectedAsset?.section === 'residences' 
                           ? (language === 'es' ? 'Fecha de Llegada *' : 'Arrival Date *')
                           : selectedAsset?.section === 'watercraft'
@@ -1295,6 +1296,7 @@ export default function CalendarPage() {
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, startDate: e.target.value }))
                         }
+                        className="text-sm sm:text-base"
                       />
                       {selectedAsset && selectedAsset.section === 'residences' && (
                         <p className="text-xs text-muted mt-1">
@@ -1308,7 +1310,7 @@ export default function CalendarPage() {
                       )}
                     </div>
                     <div>
-                      <Label>
+                      <Label className="text-sm">
                         {selectedAsset?.section === 'residences' 
                           ? (language === 'es' ? 'Fecha de Salida *' : 'Departure Date *')
                           : selectedAsset?.section === 'watercraft'
@@ -1322,6 +1324,7 @@ export default function CalendarPage() {
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, endDate: e.target.value }))
                         }
+                        className="text-sm sm:text-base"
                       />
                       {selectedAsset && selectedAsset.section === 'residences' && (
                         <p className="text-xs text-muted mt-1">
