@@ -487,9 +487,11 @@ export function PlaneBookingModal({
               <Label>{tripType === 'taken' ? 'Departure Time' : 'Pickup Time'} *</Label>
               <Input
                 type="time"
+                step="900"
                 value={selectedTime}
                 onChange={(e) => setSelectedTime(e.target.value)}
               />
+              <p className="text-xs text-muted mt-1">15-minute intervals</p>
             </div>
           </div>
 

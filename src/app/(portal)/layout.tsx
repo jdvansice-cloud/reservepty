@@ -37,8 +37,6 @@ const navigation = [
   { name: 'Assets', href: '/assets', icon: Layers },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'Airports', href: '/airports', icon: MapPin },
-  { name: 'Members', href: '/members', icon: Users },
-  { name: 'Tiers', href: '/tiers', icon: Users },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

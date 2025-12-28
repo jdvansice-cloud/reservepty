@@ -747,6 +747,7 @@ export default function NewAssetPage() {
                       <Label>Check-in Time</Label>
                       <Input
                         type="time"
+                        step="900"
                         value={formData.checkInTime || '15:00'}
                         onChange={(e) => updateFormData('checkInTime', e.target.value)}
                       />
@@ -755,6 +756,7 @@ export default function NewAssetPage() {
                       <Label>Check-out Time</Label>
                       <Input
                         type="time"
+                        step="900"
                         value={formData.checkOutTime || '11:00'}
                         onChange={(e) => updateFormData('checkOutTime', e.target.value)}
                       />

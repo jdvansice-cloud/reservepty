@@ -276,10 +276,13 @@ export default function CalendarPage() {
       return;
     }
 
-    const startDate = new Date(bookingForm.startDate);
-    const endDate = bookingForm.endDate ? new Date(bookingForm.endDate) : startDate;
+    // Build full datetime for comparison
+    const startDateTime = new Date(`${bookingForm.startDate}T${bookingForm.startTime || '00:00'}:00`);
+    const endDate = bookingForm.endDate || bookingForm.startDate;
+    const endDateTime = new Date(`${endDate}T${bookingForm.endTime || '23:59'}:00`);
     
     // Find overlapping reservations for the same asset
+    // Using strict inequality: allows back-to-back where arrival === next departure
     const overlapping = reservations.filter((r) => {
       if (r.asset_id !== bookingForm.assetId) return false;
       if (r.status === 'rejected' || r.status === 'cancelled') return false;
@@ -287,12 +290,13 @@ export default function CalendarPage() {
       const rStart = new Date(r.start_datetime);
       const rEnd = new Date(r.end_datetime);
       
-      // Check overlap
-      return startDate <= rEnd && endDate >= rStart;
+      // Strict overlap check: startDateTime < rEnd AND endDateTime > rStart
+      // This allows: myDeparture === theirArrival (no overlap)
+      return startDateTime < rEnd && endDateTime > rStart;
     });
 
     setConflicts(overlapping);
-  }, [bookingForm.assetId, bookingForm.startDate, bookingForm.endDate, reservations]);
+  }, [bookingForm.assetId, bookingForm.startDate, bookingForm.endDate, bookingForm.startTime, bookingForm.endTime, reservations]);
 
   const handleBookingClick = (reservation: Reservation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1084,16 +1088,19 @@ export default function CalendarPage() {
                         <Label>Departure Time</Label>
                         <Input
                           type="time"
+                          step="900"
                           value={bookingForm.startTime}
                           onChange={(e) =>
                             setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))
                           }
                         />
+                        <p className="text-xs text-muted mt-1">15-minute intervals</p>
                       </div>
                       <div>
                         <Label>Arrival Time (est.)</Label>
                         <Input
                           type="time"
+                          step="900"
                           value={bookingForm.endTime}
                           onChange={(e) =>
                             setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))

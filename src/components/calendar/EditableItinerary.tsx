@@ -361,6 +361,7 @@ export function EditableItinerary({
                     <Label className="text-xs">Departure Time</Label>
                     <Input
                       type="datetime-local"
+                      step="900"
                       value={leg.departureTime.slice(0, 16)}
                       onChange={(e) => {
                         const newTime = new Date(e.target.value).toISOString();
@@ -368,6 +369,7 @@ export function EditableItinerary({
                       }}
                       className="text-sm"
                     />
+                    <p className="text-xs text-muted mt-1">15-minute intervals</p>
                   </div>
 
                   {/* Calculated Info */}

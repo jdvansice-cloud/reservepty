@@ -207,8 +207,8 @@ export default function AirportsPage() {
 
   const handleSaveAirport = async () => {
     if (!session?.access_token) return;
-    if (!airportForm.icao_code && !airportForm.name) {
-      toast({ title: 'Error', description: 'ICAO code and name are required.', variant: 'error' });
+    if (!airportForm.name) {
+      toast({ title: 'Error', description: 'Airport name is required.', variant: 'error' });
       return;
     }
 
@@ -217,9 +217,13 @@ export default function AirportsPage() {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+      // Generate a unique identifier if no codes provided
+      const icaoCode = airportForm.icao_code?.toUpperCase() || null;
+      const iataCode = airportForm.iata_code?.toUpperCase() || null;
+
       const airportData = {
-        iata_code: airportForm.iata_code?.toUpperCase() || null,
-        icao_code: airportForm.icao_code?.toUpperCase(),
+        iata_code: iataCode,
+        icao_code: icaoCode || `X${Date.now().toString(36).toUpperCase().slice(-5)}`, // Generate unique code if none provided
         name: airportForm.name,
         city: airportForm.city || null,
         country: airportForm.country,
@@ -508,14 +512,14 @@ export default function AirportsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>ICAO Code *</Label>
+                  <Label>ICAO Code</Label>
                   <Input
                     placeholder="KMIA"
                     value={airportForm.icao_code}
                     onChange={(e) => setAirportForm({ ...airportForm, icao_code: e.target.value.toUpperCase() })}
                     maxLength={4}
                   />
-                  <p className="text-xs text-muted mt-1">4-letter code (required)</p>
+                  <p className="text-xs text-muted mt-1">4-letter code (optional)</p>
                 </div>
                 <div>
                   <Label>IATA Code</Label>
@@ -602,7 +606,7 @@ export default function AirportsPage() {
                 <Button 
                   className="flex-1" 
                   onClick={handleSaveAirport}
-                  disabled={isSaving || !airportForm.icao_code || !airportForm.name || !airportForm.country}
+                  disabled={isSaving || !airportForm.name || !airportForm.country}
                 >
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingAirport ? 'Update' : 'Add Airport')}
                 </Button>

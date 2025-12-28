@@ -598,11 +598,11 @@ export default function EditAssetPage() {
                   </div>
                   <div>
                     <Label>Check-in Time</Label>
-                    <Input type="time" value={formData.checkInTime || '15:00'} onChange={(e) => updateFormData('checkInTime', e.target.value)} />
+                    <Input type="time" step="900" value={formData.checkInTime || '15:00'} onChange={(e) => updateFormData('checkInTime', e.target.value)} />
                   </div>
                   <div>
                     <Label>Check-out Time</Label>
-                    <Input type="time" value={formData.checkOutTime || '11:00'} onChange={(e) => updateFormData('checkOutTime', e.target.value)} />
+                    <Input type="time" step="900" value={formData.checkOutTime || '11:00'} onChange={(e) => updateFormData('checkOutTime', e.target.value)} />
                   </div>
                   <div className="col-span-2">
                     <Label>Cleaning Buffer (hours)</Label>
