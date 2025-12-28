@@ -21,7 +21,39 @@ import {
   Loader2,
   Image as ImageIcon,
   Trash2,
+  MapPin,
 } from 'lucide-react';
+
+interface Airport {
+  id: string;
+  icao_code: string;
+  iata_code: string | null;
+  name: string;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface Heliport {
+  id: string;
+  icao_code: string;
+  name: string;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface Port {
+  id: string;
+  code: string | null;
+  name: string;
+  city: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
   planes: Plane,
@@ -93,6 +125,69 @@ export default function EditAssetPage() {
     description: '',
     amenities: [],
   });
+
+  // Directories state
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [heliports, setHeliports] = useState<Heliport[]>([]);
+  const [ports, setPorts] = useState<Port[]>([]);
+
+  // Fetch directories on mount
+  useEffect(() => {
+    const fetchDirectories = async () => {
+      if (!session?.access_token) return;
+      
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      try {
+        // Fetch airports
+        const airportsRes = await fetch(
+          `${baseUrl}/rest/v1/airports?type=eq.airport&is_active=eq.true&order=name.asc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+        if (airportsRes.ok) {
+          setAirports(await airportsRes.json());
+        }
+
+        // Fetch heliports
+        const heliportsRes = await fetch(
+          `${baseUrl}/rest/v1/airports?type=eq.helipad&is_active=eq.true&order=name.asc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+        if (heliportsRes.ok) {
+          setHeliports(await heliportsRes.json());
+        }
+
+        // Fetch ports
+        const portsRes = await fetch(
+          `${baseUrl}/rest/v1/ports?is_active=eq.true&order=name.asc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+        if (portsRes.ok) {
+          setPorts(await portsRes.json());
+        }
+      } catch (error) {
+        console.error('Error fetching directories:', error);
+      }
+    };
+
+    fetchDirectories();
+  }, [session?.access_token]);
 
   // Fetch asset data
   useEffect(() => {
@@ -520,8 +615,30 @@ export default function EditAssetPage() {
                   <Input value={formData.range || ''} onChange={(e) => updateFormData('range', e.target.value)} />
                 </div>
                 <div>
-                  <Label>Home Airport (IATA)</Label>
-                  <Input value={formData.homeAirport || ''} onChange={(e) => updateFormData('homeAirport', e.target.value.toUpperCase())} maxLength={3} />
+                  <Label>Home Airport *</Label>
+                  <select
+                    value={formData.homeAirport || ''}
+                    onChange={(e) => updateFormData('homeAirport', e.target.value)}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
+                  >
+                    <option value="">Select home airport...</option>
+                    {airports.map((airport) => (
+                      <option 
+                        key={airport.id} 
+                        value={airport.iata_code || airport.icao_code}
+                        disabled={!airport.latitude || !airport.longitude}
+                      >
+                        {airport.iata_code || airport.icao_code} - {airport.name} ({airport.city})
+                        {(!airport.latitude || !airport.longitude) ? ' ⚠️ No coords' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {airports.length === 0 && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      No airports found. <Link href="/airports" className="underline">Add airports first</Link>
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <Label>Turnaround Time (minutes)</Label>
@@ -554,8 +671,30 @@ export default function EditAssetPage() {
                   <Input type="number" value={formData.passengerCapacity || ''} onChange={(e) => updateFormData('passengerCapacity', e.target.value)} />
                 </div>
                 <div>
-                  <Label>Home Helipad</Label>
-                  <Input value={formData.homeHelipad || ''} onChange={(e) => updateFormData('homeHelipad', e.target.value)} />
+                  <Label>Home Heliport *</Label>
+                  <select
+                    value={formData.homeHelipad || ''}
+                    onChange={(e) => updateFormData('homeHelipad', e.target.value)}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
+                  >
+                    <option value="">Select home heliport...</option>
+                    {heliports.map((heliport) => (
+                      <option 
+                        key={heliport.id} 
+                        value={heliport.icao_code}
+                        disabled={!heliport.latitude || !heliport.longitude}
+                      >
+                        {heliport.icao_code} - {heliport.name} ({heliport.city})
+                        {(!heliport.latitude || !heliport.longitude) ? ' ⚠️ No coords' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {heliports.length === 0 && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      No heliports found. <Link href="/heliports" className="underline">Add heliports first</Link>
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <Label>Turnaround Time (minutes)</Label>
@@ -672,8 +811,30 @@ export default function EditAssetPage() {
                   <Input type="number" value={formData.crew || ''} onChange={(e) => updateFormData('crew', e.target.value)} />
                 </div>
                 <div>
-                  <Label>Home Port</Label>
-                  <Input value={formData.homePort || ''} onChange={(e) => updateFormData('homePort', e.target.value)} />
+                  <Label>Home Port *</Label>
+                  <select
+                    value={formData.homePort || ''}
+                    onChange={(e) => updateFormData('homePort', e.target.value)}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
+                  >
+                    <option value="">Select home port...</option>
+                    {ports.map((port) => (
+                      <option 
+                        key={port.id} 
+                        value={port.code || port.name}
+                        disabled={!port.latitude || !port.longitude}
+                      >
+                        {port.code ? `${port.code} - ` : ''}{port.name} ({port.city})
+                        {(!port.latitude || !port.longitude) ? ' ⚠️ No coords' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {ports.length === 0 && (
+                    <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      No ports found. <Link href="/ports" className="underline">Add ports first</Link>
+                    </p>
+                  )}
                 </div>
               </div>
             )}

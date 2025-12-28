@@ -196,7 +196,7 @@ export default function AdminSettingsPage() {
                   <div>
                     <h3 className="text-white font-medium mb-4">Section Prices (Monthly)</h3>
                     <div className="grid grid-cols-2 gap-4">
-                      {['Planes', 'Helicopters', 'Residences', 'Boats'].map((section) => (
+                      {['Planes', 'Helicopters', 'Residences & Spaces', 'Boats'].map((section) => (
                         <div key={section} className="space-y-2">
                           <label className="text-sm font-medium text-white">{section}</label>
                           <div className="relative">

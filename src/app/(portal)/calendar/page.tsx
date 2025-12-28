@@ -276,10 +276,30 @@ export default function CalendarPage() {
       return;
     }
 
+    const selectedAsset = assets.find(a => a.id === bookingForm.assetId);
+
     // Build full datetime for comparison
-    const startDateTime = new Date(`${bookingForm.startDate}T${bookingForm.startTime || '00:00'}:00`);
-    const endDate = bookingForm.endDate || bookingForm.startDate;
-    const endDateTime = new Date(`${endDate}T${bookingForm.endTime || '23:59'}:00`);
+    let startDateTime: Date;
+    let endDateTime: Date;
+
+    if (selectedAsset?.section === 'residences') {
+      // Residences use check-in/check-out times
+      const checkInTime = selectedAsset?.details?.checkInTime || '15:00';
+      const checkOutTime = selectedAsset?.details?.checkOutTime || '11:00';
+      startDateTime = new Date(`${bookingForm.startDate}T${checkInTime}:00`);
+      const endDate = bookingForm.endDate || bookingForm.startDate;
+      endDateTime = new Date(`${endDate}T${checkOutTime}:00`);
+    } else if (selectedAsset?.section === 'boats') {
+      // Boats use full day: 00:00 to 23:59
+      startDateTime = new Date(`${bookingForm.startDate}T00:00:00`);
+      const endDate = bookingForm.endDate || bookingForm.startDate;
+      endDateTime = new Date(`${endDate}T23:59:59`);
+    } else {
+      // Aviation uses start/end times
+      startDateTime = new Date(`${bookingForm.startDate}T${bookingForm.startTime || '00:00'}:00`);
+      const endDate = bookingForm.endDate || bookingForm.startDate;
+      endDateTime = new Date(`${endDate}T${bookingForm.endTime || '23:59'}:00`);
+    }
     
     // Find overlapping reservations for the same asset
     // Using strict inequality: allows back-to-back where arrival === next departure
@@ -296,7 +316,7 @@ export default function CalendarPage() {
     });
 
     setConflicts(overlapping);
-  }, [bookingForm.assetId, bookingForm.startDate, bookingForm.endDate, bookingForm.startTime, bookingForm.endTime, reservations]);
+  }, [bookingForm.assetId, bookingForm.startDate, bookingForm.endDate, bookingForm.startTime, bookingForm.endTime, reservations, assets]);
 
   const handleBookingClick = (reservation: Reservation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -641,10 +661,20 @@ export default function CalendarPage() {
       if (isAviation) {
         startDatetime = `${bookingForm.startDate}T${bookingForm.startTime}:00`;
         endDatetime = `${bookingForm.endDate || bookingForm.startDate}T${bookingForm.endTime}:00`;
+      } else if (selectedAsset?.section === 'residences') {
+        // Residences use check-in/check-out times
+        const checkInTime = selectedAsset.details?.checkInTime || '15:00';
+        const checkOutTime = selectedAsset.details?.checkOutTime || '11:00';
+        startDatetime = `${bookingForm.startDate}T${checkInTime}:00`;
+        endDatetime = `${bookingForm.endDate}T${checkOutTime}:00`;
+      } else if (selectedAsset?.section === 'boats') {
+        // Boats use full day: 00:00 to 23:59
+        startDatetime = `${bookingForm.startDate}T00:00:00`;
+        endDatetime = `${bookingForm.endDate}T23:59:59`;
       } else {
-        // For residences/boats, use check-in/check-out times or default full day
-        startDatetime = `${bookingForm.startDate}T15:00:00`;
-        endDatetime = `${bookingForm.endDate || bookingForm.startDate}T11:00:00`;
+        // Generic fallback
+        startDatetime = `${bookingForm.startDate}T00:00:00`;
+        endDatetime = `${bookingForm.endDate || bookingForm.startDate}T23:59:59`;
       }
 
       const reservationData = {
@@ -1037,7 +1067,13 @@ export default function CalendarPage() {
                   {/* Date Selection */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Start Date *</Label>
+                      <Label>
+                        {selectedAsset?.section === 'residences' 
+                          ? 'Arrival Date *' 
+                          : selectedAsset?.section === 'boats'
+                          ? 'Departure Date *'
+                          : 'Start Date *'}
+                      </Label>
                       <Input
                         type="date"
                         value={bookingForm.startDate}
@@ -1045,9 +1081,25 @@ export default function CalendarPage() {
                           setBookingForm((prev) => ({ ...prev, startDate: e.target.value }))
                         }
                       />
+                      {selectedAsset && selectedAsset.section === 'residences' && (
+                        <p className="text-xs text-muted mt-1">
+                          Check-in: {selectedAsset.details?.checkInTime || '15:00'}
+                        </p>
+                      )}
+                      {selectedAsset && selectedAsset.section === 'boats' && (
+                        <p className="text-xs text-muted mt-1">
+                          From 12:00 AM
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <Label>End Date</Label>
+                      <Label>
+                        {selectedAsset?.section === 'residences' 
+                          ? 'Departure Date *' 
+                          : selectedAsset?.section === 'boats'
+                          ? 'Return Date *'
+                          : 'End Date'}
+                      </Label>
                       <Input
                         type="date"
                         value={bookingForm.endDate}
@@ -1056,6 +1108,16 @@ export default function CalendarPage() {
                           setBookingForm((prev) => ({ ...prev, endDate: e.target.value }))
                         }
                       />
+                      {selectedAsset && selectedAsset.section === 'residences' && (
+                        <p className="text-xs text-muted mt-1">
+                          Check-out: {selectedAsset.details?.checkOutTime || '11:00'}
+                        </p>
+                      )}
+                      {selectedAsset && selectedAsset.section === 'boats' && (
+                        <p className="text-xs text-muted mt-1">
+                          Until 11:59 PM
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1151,13 +1213,21 @@ export default function CalendarPage() {
                     <Button
                       className="flex-1"
                       onClick={handleSubmitBooking}
-                      disabled={!bookingForm.assetId || !bookingForm.startDate || isSubmitting}
+                      disabled={
+                        !bookingForm.assetId || 
+                        !bookingForm.startDate || 
+                        isSubmitting ||
+                        conflicts.length > 0 ||
+                        (selectedAsset && ['residences', 'boats'].includes(selectedAsset.section) && !bookingForm.endDate)
+                      }
                     >
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Creating...
                         </>
+                      ) : conflicts.length > 0 ? (
+                        'Cannot Book - Conflict'
                       ) : (
                         'Create Booking'
                       )}

@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
 import { cn } from '@/lib/utils';
 import {
-  Plane,
+  Anchor,
   Plus,
   Search,
   MapPin,
@@ -17,32 +17,28 @@ import {
   Star,
   X,
   Navigation,
-  Ruler,
   Edit2,
   Trash2,
+  Ship,
 } from 'lucide-react';
 
-interface Airport {
+interface Port {
   id: string;
-  icao_code: string;
-  iata_code: string | null;
+  code: string | null;
   name: string;
   city: string | null;
   country: string;
   latitude: number | null;
   longitude: number | null;
   timezone: string | null;
-  type: string;
-  runway_length_ft: number | null;
   is_active: boolean;
 }
 
-interface PlaneAsset {
+interface BoatAsset {
   id: string;
   name: string;
   details: {
-    homeAirport?: string;
-    cruiseSpeed?: string;
+    homePort?: string;
   };
 }
 
@@ -59,30 +55,28 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * c);
 }
 
-export default function AirportsPage() {
+export default function PortsPage() {
   const { toast } = useToast();
   const { organization, session } = useAuth();
   
-  const [airports, setAirports] = useState<Airport[]>([]);
-  const [planes, setPlanes] = useState<PlaneAsset[]>([]);
-  const [selectedHomeAirport, setSelectedHomeAirport] = useState<Airport | null>(null);
+  const [ports, setPorts] = useState<Port[]>([]);
+  const [boats, setBoats] = useState<BoatAsset[]>([]);
+  const [selectedHomePort, setSelectedHomePort] = useState<Port | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingAirport, setEditingAirport] = useState<Airport | null>(null);
-  const [airportForm, setAirportForm] = useState({
-    iata_code: '',
-    icao_code: '',
+  const [editingPort, setEditingPort] = useState<Port | null>(null);
+  const [portForm, setPortForm] = useState({
+    code: '',
     name: '',
     city: '',
     country: '',
     latitude: '',
     longitude: '',
-    runway_length_ft: '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch airports and planes
+  // Fetch ports and boats
   useEffect(() => {
     const fetchData = async () => {
       if (!session?.access_token) {
@@ -94,9 +88,9 @@ export default function AirportsPage() {
         const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        // Fetch airports (type = airport only)
-        const airportsResponse = await fetch(
-          `${baseUrl}/rest/v1/airports?type=eq.airport&is_active=eq.true&order=name.asc`,
+        // Fetch ports
+        const portsResponse = await fetch(
+          `${baseUrl}/rest/v1/ports?is_active=eq.true&order=name.asc`,
           {
             headers: {
               'apikey': apiKey!,
@@ -105,15 +99,15 @@ export default function AirportsPage() {
           }
         );
 
-        if (airportsResponse.ok) {
-          const airportsData = await airportsResponse.json();
-          setAirports(airportsData);
+        if (portsResponse.ok) {
+          const portsData = await portsResponse.json();
+          setPorts(portsData);
         }
 
-        // Fetch planes to get home airport
+        // Fetch boats to get home port
         if (organization?.id) {
-          const planesResponse = await fetch(
-            `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&section=eq.planes&is_active=eq.true&select=id,name,details`,
+          const boatsResponse = await fetch(
+            `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&section=eq.boats&is_active=eq.true&select=id,name,details`,
             {
               headers: {
                 'apikey': apiKey!,
@@ -122,9 +116,9 @@ export default function AirportsPage() {
             }
           );
 
-          if (planesResponse.ok) {
-            const planesData = await planesResponse.json();
-            setPlanes(planesData);
+          if (boatsResponse.ok) {
+            const boatsData = await boatsResponse.json();
+            setBoats(boatsData);
           }
         }
       } catch (error) {
@@ -137,86 +131,79 @@ export default function AirportsPage() {
     fetchData();
   }, [organization?.id, session?.access_token]);
 
-  // Update home airport when airports load
+  // Update home port when data loads
   useEffect(() => {
-    if (planes.length > 0 && airports.length > 0 && !selectedHomeAirport) {
-      const homeCode = planes[0].details?.homeAirport;
+    if (boats.length > 0 && ports.length > 0 && !selectedHomePort) {
+      const homeCode = boats[0].details?.homePort;
       if (homeCode) {
-        const home = airports.find(a => 
-          a.iata_code === homeCode || a.icao_code === homeCode
-        );
-        if (home) setSelectedHomeAirport(home);
+        const home = ports.find(p => p.code === homeCode || p.name === homeCode);
+        if (home) setSelectedHomePort(home);
       }
     }
-  }, [planes, airports, selectedHomeAirport]);
+  }, [boats, ports, selectedHomePort]);
 
-  const filteredAirports = airports.filter((airport) => {
+  const filteredPorts = ports.filter((port) => {
     const searchLower = search.toLowerCase();
     return (
-      airport.iata_code?.toLowerCase().includes(searchLower) ||
-      airport.icao_code?.toLowerCase().includes(searchLower) ||
-      airport.name?.toLowerCase().includes(searchLower) ||
-      airport.city?.toLowerCase().includes(searchLower) ||
-      airport.country?.toLowerCase().includes(searchLower)
+      port.code?.toLowerCase().includes(searchLower) ||
+      port.name?.toLowerCase().includes(searchLower) ||
+      port.city?.toLowerCase().includes(searchLower) ||
+      port.country?.toLowerCase().includes(searchLower)
     );
   });
 
-  const getDistanceFromHome = (airport: Airport): number | null => {
-    if (!selectedHomeAirport || !airport.latitude || !airport.longitude || 
-        !selectedHomeAirport.latitude || !selectedHomeAirport.longitude) {
+  const getDistanceFromHome = (port: Port): number | null => {
+    if (!selectedHomePort || !port.latitude || !port.longitude || 
+        !selectedHomePort.latitude || !selectedHomePort.longitude) {
       return null;
     }
-    if (airport.id === selectedHomeAirport.id) return 0;
+    if (port.id === selectedHomePort.id) return 0;
     return calculateDistance(
-      selectedHomeAirport.latitude,
-      selectedHomeAirport.longitude,
-      airport.latitude,
-      airport.longitude
+      selectedHomePort.latitude,
+      selectedHomePort.longitude,
+      port.latitude,
+      port.longitude
     );
   };
 
   const openAddModal = () => {
-    setEditingAirport(null);
-    setAirportForm({
-      iata_code: '',
-      icao_code: '',
+    setEditingPort(null);
+    setPortForm({
+      code: '',
       name: '',
       city: '',
       country: '',
       latitude: '',
       longitude: '',
-      runway_length_ft: '',
     });
     setShowAddModal(true);
   };
 
-  const openEditModal = (airport: Airport) => {
-    setEditingAirport(airport);
-    setAirportForm({
-      iata_code: airport.iata_code || '',
-      icao_code: airport.icao_code || '',
-      name: airport.name,
-      city: airport.city || '',
-      country: airport.country,
-      latitude: airport.latitude?.toString() || '',
-      longitude: airport.longitude?.toString() || '',
-      runway_length_ft: airport.runway_length_ft?.toString() || '',
+  const openEditModal = (port: Port) => {
+    setEditingPort(port);
+    setPortForm({
+      code: port.code || '',
+      name: port.name,
+      city: port.city || '',
+      country: port.country,
+      latitude: port.latitude?.toString() || '',
+      longitude: port.longitude?.toString() || '',
     });
     setShowAddModal(true);
   };
 
-  const handleSaveAirport = async () => {
+  const handleSavePort = async () => {
     if (!session?.access_token) return;
-    if (!airportForm.name) {
-      toast({ title: 'Error', description: 'Airport name is required.', variant: 'error' });
+    if (!portForm.name) {
+      toast({ title: 'Error', description: 'Port name is required.', variant: 'error' });
       return;
     }
-    if (!airportForm.country) {
+    if (!portForm.country) {
       toast({ title: 'Error', description: 'Country is required.', variant: 'error' });
       return;
     }
-    if (!airportForm.latitude || !airportForm.longitude) {
-      toast({ title: 'Error', description: 'Latitude and longitude are required for flight calculations.', variant: 'error' });
+    if (!portForm.latitude || !portForm.longitude) {
+      toast({ title: 'Error', description: 'Latitude and longitude are required for navigation.', variant: 'error' });
       return;
     }
 
@@ -225,28 +212,20 @@ export default function AirportsPage() {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      // Generate a unique identifier if no codes provided
-      const icaoCode = airportForm.icao_code?.toUpperCase() || null;
-      const iataCode = airportForm.iata_code?.toUpperCase() || null;
-
-      const airportData = {
-        iata_code: iataCode,
-        icao_code: icaoCode || `X${Date.now().toString(36).toUpperCase().slice(-5)}`, // Generate unique code if none provided
-        name: airportForm.name,
-        city: airportForm.city || null,
-        country: airportForm.country,
-        latitude: parseFloat(airportForm.latitude),
-        longitude: parseFloat(airportForm.longitude),
-        runway_length_ft: airportForm.runway_length_ft ? parseInt(airportForm.runway_length_ft) : null,
-        type: 'airport',
+      const portData = {
+        code: portForm.code?.toUpperCase() || null,
+        name: portForm.name,
+        city: portForm.city || null,
+        country: portForm.country,
+        latitude: parseFloat(portForm.latitude),
+        longitude: parseFloat(portForm.longitude),
         is_active: true,
       };
 
       let response;
-      if (editingAirport) {
-        // Update existing
+      if (editingPort) {
         response = await fetch(
-          `${baseUrl}/rest/v1/airports?id=eq.${editingAirport.id}`,
+          `${baseUrl}/rest/v1/ports?id=eq.${editingPort.id}`,
           {
             method: 'PATCH',
             headers: {
@@ -255,13 +234,12 @@ export default function AirportsPage() {
               'Authorization': `Bearer ${session.access_token}`,
               'Prefer': 'return=representation',
             },
-            body: JSON.stringify(airportData),
+            body: JSON.stringify(portData),
           }
         );
       } else {
-        // Create new
         response = await fetch(
-          `${baseUrl}/rest/v1/airports`,
+          `${baseUrl}/rest/v1/ports`,
           {
             method: 'POST',
             headers: {
@@ -270,7 +248,7 @@ export default function AirportsPage() {
               'Authorization': `Bearer ${session.access_token}`,
               'Prefer': 'return=representation',
             },
-            body: JSON.stringify(airportData),
+            body: JSON.stringify(portData),
           }
         );
       }
@@ -282,12 +260,12 @@ export default function AirportsPage() {
 
       const result = await response.json();
       
-      if (editingAirport) {
-        setAirports(airports.map(a => a.id === editingAirport.id ? result[0] : a));
-        toast({ title: 'Airport updated', description: `${airportForm.name} has been updated.` });
+      if (editingPort) {
+        setPorts(ports.map(p => p.id === editingPort.id ? result[0] : p));
+        toast({ title: 'Port updated', description: `${portForm.name} has been updated.` });
       } else {
-        setAirports([...airports, result[0]]);
-        toast({ title: 'Airport added', description: `${airportForm.name} has been added.` });
+        setPorts([...ports, result[0]]);
+        toast({ title: 'Port added', description: `${portForm.name} has been added.` });
       }
       
       setShowAddModal(false);
@@ -298,16 +276,16 @@ export default function AirportsPage() {
     }
   };
 
-  const handleDeleteAirport = async (airport: Airport) => {
+  const handleDeletePort = async (port: Port) => {
     if (!session?.access_token) return;
-    if (!confirm(`Delete ${airport.name}?`)) return;
+    if (!confirm(`Delete ${port.name}?`)) return;
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       const response = await fetch(
-        `${baseUrl}/rest/v1/airports?id=eq.${airport.id}`,
+        `${baseUrl}/rest/v1/ports?id=eq.${port.id}`,
         {
           method: 'PATCH',
           headers: {
@@ -321,8 +299,8 @@ export default function AirportsPage() {
 
       if (!response.ok) throw new Error('Failed to delete');
 
-      setAirports(airports.filter(a => a.id !== airport.id));
-      toast({ title: 'Airport deleted', description: `${airport.name} has been removed.` });
+      setPorts(ports.filter(p => p.id !== port.id));
+      toast({ title: 'Port deleted', description: `${port.name} has been removed.` });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'error' });
     }
@@ -341,42 +319,42 @@ export default function AirportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Airports</h1>
-          <p className="text-muted mt-1">Airport directory for flight planning</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Ports & Marinas</h1>
+          <p className="text-muted mt-1">Port directory for boat navigation</p>
         </div>
         <Button onClick={openAddModal}>
           <Plus className="w-4 h-4 mr-2" />
-          Add Airport
+          Add Port
         </Button>
       </div>
 
-      {/* Home Airport Selector */}
-      {planes.length > 0 && (
+      {/* Home Port Selector */}
+      {boats.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-gold-500">
                 <Star className="w-5 h-5 fill-current" />
-                <span className="font-medium">Home Airport:</span>
+                <span className="font-medium">Home Port:</span>
               </div>
               <select
-                value={selectedHomeAirport?.id || ''}
+                value={selectedHomePort?.id || ''}
                 onChange={(e) => {
-                  const airport = airports.find(a => a.id === e.target.value);
-                  setSelectedHomeAirport(airport || null);
+                  const port = ports.find(p => p.id === e.target.value);
+                  setSelectedHomePort(port || null);
                 }}
                 className="flex-1 max-w-md px-4 py-2 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
               >
-                <option value="">Select home airport...</option>
-                {airports.map((airport) => (
-                  <option key={airport.id} value={airport.id}>
-                    {airport.icao_code}{airport.iata_code ? ` / ${airport.iata_code}` : ''} - {airport.name}
+                <option value="">Select home port...</option>
+                {ports.map((port) => (
+                  <option key={port.id} value={port.id}>
+                    {port.code ? `${port.code} - ` : ''}{port.name}
                   </option>
                 ))}
               </select>
-              {selectedHomeAirport && (
+              {selectedHomePort && (
                 <span className="text-sm text-muted">
-                  {selectedHomeAirport.city}, {selectedHomeAirport.country}
+                  {selectedHomePort.city}, {selectedHomePort.country}
                 </span>
               )}
             </div>
@@ -388,22 +366,22 @@ export default function AirportsPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
         <Input
-          placeholder="Search airports..."
+          placeholder="Search ports..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-12"
         />
       </div>
 
-      {/* Airports Grid */}
+      {/* Ports Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredAirports.map((airport) => {
-          const distance = getDistanceFromHome(airport);
-          const isHome = selectedHomeAirport?.id === airport.id;
+        {filteredPorts.map((port) => {
+          const distance = getDistanceFromHome(port);
+          const isHome = selectedHomePort?.id === port.id;
           
           return (
             <Card 
-              key={airport.id} 
+              key={port.id} 
               className={cn(
                 'transition-all hover:border-gold-500/30 group',
                 isHome && 'border-gold-500 bg-gold-500/5'
@@ -416,36 +394,34 @@ export default function AirportsPage() {
                       'w-12 h-12 rounded-lg flex items-center justify-center',
                       isHome ? 'bg-gold-500/20' : 'bg-surface'
                     )}>
-                      <span className={cn(
-                        'text-sm font-bold',
-                        isHome ? 'text-gold-500' : 'text-white'
-                      )}>
-                        {airport.icao_code}
-                      </span>
+                      <Anchor className={cn(
+                        'w-6 h-6',
+                        isHome ? 'text-gold-500' : 'text-blue-400'
+                      )} />
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-medium text-white text-sm line-clamp-1">
-                        {airport.name}
+                        {port.name}
                       </h3>
                       <p className="text-xs text-muted flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {airport.city}, {airport.country}
+                        {port.city}, {port.country}
                       </p>
-                      {airport.iata_code && (
-                        <p className="text-xs text-gold-500/70">IATA: {airport.iata_code}</p>
+                      {port.code && (
+                        <p className="text-xs text-blue-400/70">Code: {port.code}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {isHome && <Star className="w-4 h-4 text-gold-500 fill-current" />}
                     <button
-                      onClick={() => openEditModal(airport)}
+                      onClick={() => openEditModal(port)}
                       className="p-1.5 rounded hover:bg-surface text-muted hover:text-white"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => handleDeleteAirport(airport)}
+                      onClick={() => handleDeletePort(port)}
                       className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -453,17 +429,9 @@ export default function AirportsPage() {
                   </div>
                 </div>
                 
-                {/* Runway Length */}
-                {airport.runway_length_ft && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                    <Ruler className="w-3 h-3" />
-                    <span>Runway: {airport.runway_length_ft.toLocaleString()} ft</span>
-                  </div>
-                )}
-                
                 {/* Distance from home */}
                 {distance !== null && !isHome && (
-                  <div className="mt-2 pt-2 border-t border-border flex items-center justify-between">
+                  <div className="mt-3 pt-2 border-t border-border flex items-center justify-between">
                     <span className="text-xs text-muted flex items-center gap-1">
                       <Navigation className="w-3 h-3" />
                       Distance from home
@@ -475,15 +443,15 @@ export default function AirportsPage() {
                 )}
 
                 {/* Coordinates */}
-                {airport.latitude && airport.longitude ? (
+                {port.latitude && port.longitude ? (
                   <div className="mt-2 text-xs text-muted/60">
-                    {airport.latitude.toFixed(4)}°, {airport.longitude.toFixed(4)}°
+                    {port.latitude.toFixed(4)}°, {port.longitude.toFixed(4)}°
                   </div>
                 ) : (
                   <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/20">
                     <p className="text-xs text-amber-400 flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
-                      Missing coordinates - flight calculations unavailable
+                      Missing coordinates - navigation unavailable
                     </p>
                   </div>
                 )}
@@ -493,29 +461,29 @@ export default function AirportsPage() {
         })}
       </div>
 
-      {filteredAirports.length === 0 && (
+      {filteredPorts.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <Plane className="w-12 h-12 text-muted mx-auto mb-3" />
+            <Ship className="w-12 h-12 text-muted mx-auto mb-3" />
             <p className="text-muted">
-              {search ? `No airports found matching "${search}"` : 'No airports in directory'}
+              {search ? `No ports found matching "${search}"` : 'No ports in directory'}
             </p>
             <Button className="mt-4" onClick={openAddModal}>
               <Plus className="w-4 h-4 mr-2" />
-              Add First Airport
+              Add First Port
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Add/Edit Airport Modal */}
+      {/* Add/Edit Port Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <Card className="relative max-w-md w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-xl font-display">
-                {editingAirport ? 'Edit Airport' : 'Add Airport'}
+                {editingPort ? 'Edit Port' : 'Add Port'}
               </CardTitle>
               <button
                 onClick={() => setShowAddModal(false)}
@@ -525,81 +493,57 @@ export default function AirportsPage() {
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>ICAO Code</Label>
-                  <Input
-                    placeholder="KMIA"
-                    value={airportForm.icao_code}
-                    onChange={(e) => setAirportForm({ ...airportForm, icao_code: e.target.value.toUpperCase() })}
-                    maxLength={4}
-                  />
-                  <p className="text-xs text-muted mt-1">4-letter code (optional)</p>
-                </div>
-                <div>
-                  <Label>IATA Code</Label>
-                  <Input
-                    placeholder="MIA"
-                    value={airportForm.iata_code}
-                    onChange={(e) => setAirportForm({ ...airportForm, iata_code: e.target.value.toUpperCase() })}
-                    maxLength={3}
-                  />
-                  <p className="text-xs text-muted mt-1">3-letter code (optional)</p>
-                </div>
+              <div>
+                <Label>Port Code</Label>
+                <Input
+                  placeholder="PABLB"
+                  value={portForm.code}
+                  onChange={(e) => setPortForm({ ...portForm, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                />
+                <p className="text-xs text-muted mt-1">UN/LOCODE or identifier (optional)</p>
               </div>
               <div>
-                <Label>Airport Name *</Label>
+                <Label>Port / Marina Name *</Label>
                 <Input
-                  placeholder="Miami International Airport"
-                  value={airportForm.name}
-                  onChange={(e) => setAirportForm({ ...airportForm, name: e.target.value })}
+                  placeholder="Balboa Yacht Club"
+                  value={portForm.name}
+                  onChange={(e) => setPortForm({ ...portForm, name: e.target.value })}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>City</Label>
                   <Input
-                    placeholder="Miami"
-                    value={airportForm.city}
-                    onChange={(e) => setAirportForm({ ...airportForm, city: e.target.value })}
+                    placeholder="Panama City"
+                    value={portForm.city}
+                    onChange={(e) => setPortForm({ ...portForm, city: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label>Country *</Label>
                   <Input
-                    placeholder="USA"
-                    value={airportForm.country}
-                    onChange={(e) => setAirportForm({ ...airportForm, country: e.target.value })}
+                    placeholder="Panama"
+                    value={portForm.country}
+                    onChange={(e) => setPortForm({ ...portForm, country: e.target.value })}
                   />
                 </div>
-              </div>
-              
-              {/* Runway Length */}
-              <div>
-                <Label>Runway / Strip Length (ft)</Label>
-                <Input
-                  type="number"
-                  placeholder="10000"
-                  value={airportForm.runway_length_ft}
-                  onChange={(e) => setAirportForm({ ...airportForm, runway_length_ft: e.target.value })}
-                />
-                <p className="text-xs text-muted mt-1">Useful for aircraft compatibility</p>
               </div>
 
               {/* Coordinates */}
               <div>
                 <Label className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
-                  Geolocation * <span className="text-xs text-muted">(required for flight calculations)</span>
+                  Geolocation * <span className="text-xs text-muted">(required for navigation)</span>
                 </Label>
                 <div className="grid grid-cols-2 gap-4 mt-2">
                   <div>
                     <Input
                       type="number"
                       step="0.0001"
-                      placeholder="Latitude (e.g., 25.7959)"
-                      value={airportForm.latitude}
-                      onChange={(e) => setAirportForm({ ...airportForm, latitude: e.target.value })}
+                      placeholder="Latitude (e.g., 8.9514)"
+                      value={portForm.latitude}
+                      onChange={(e) => setPortForm({ ...portForm, latitude: e.target.value })}
                     />
                     <p className="text-xs text-muted mt-1">-90 to 90</p>
                   </div>
@@ -607,9 +551,9 @@ export default function AirportsPage() {
                     <Input
                       type="number"
                       step="0.0001"
-                      placeholder="Longitude (e.g., -80.2870)"
-                      value={airportForm.longitude}
-                      onChange={(e) => setAirportForm({ ...airportForm, longitude: e.target.value })}
+                      placeholder="Longitude (e.g., -79.5456)"
+                      value={portForm.longitude}
+                      onChange={(e) => setPortForm({ ...portForm, longitude: e.target.value })}
                     />
                     <p className="text-xs text-muted mt-1">-180 to 180</p>
                   </div>
@@ -622,10 +566,10 @@ export default function AirportsPage() {
                 </Button>
                 <Button 
                   className="flex-1" 
-                  onClick={handleSaveAirport}
-                  disabled={isSaving || !airportForm.name || !airportForm.country || !airportForm.latitude || !airportForm.longitude}
+                  onClick={handleSavePort}
+                  disabled={isSaving || !portForm.name || !portForm.country || !portForm.latitude || !portForm.longitude}
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingAirport ? 'Update' : 'Add Airport')}
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingPort ? 'Update' : 'Add Port')}
                 </Button>
               </div>
             </CardContent>

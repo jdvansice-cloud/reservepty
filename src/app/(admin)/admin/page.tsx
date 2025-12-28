@@ -52,7 +52,7 @@ const platformStats = {
 const sectionStats = [
   { name: 'Planes', icon: Plane, count: 89, color: 'text-blue-400', bg: 'bg-blue-500/10' },
   { name: 'Helicopters', icon: Plane, count: 34, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  { name: 'Residences', icon: Home, count: 156, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+  { name: 'Residences & Spaces', icon: Home, count: 156, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   { name: 'Boats', icon: Ship, count: 67, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
 ];
 

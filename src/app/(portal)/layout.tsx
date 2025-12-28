@@ -22,6 +22,8 @@ import {
   X,
   Layers,
   MapPin,
+  Anchor,
+  Navigation,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -32,11 +34,19 @@ const SECTION_ICONS = {
   boats: Ship,
 };
 
-const navigation = [
+const mainNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Assets', href: '/assets', icon: Layers },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
-  { name: 'Airports', href: '/airports', icon: MapPin },
+];
+
+const directoryNavigation = [
+  { name: 'Airports', href: '/airports', icon: Plane, section: 'planes' },
+  { name: 'Heliports', href: '/heliports', icon: Navigation, section: 'helicopters' },
+  { name: 'Ports', href: '/ports', icon: Anchor, section: 'boats' },
+];
+
+const bottomNavigation = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -143,7 +153,8 @@ export default function PortalLayout({
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navigation.map((item) => {
+            {/* Main navigation */}
+            {mainNavigation.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link
@@ -162,6 +173,55 @@ export default function PortalLayout({
                 </Link>
               );
             })}
+
+            {/* Directories Section */}
+            <div className="pt-4">
+              <p className="px-3 py-2 text-xs font-semibold text-muted uppercase tracking-wider">
+                Directories
+              </p>
+              {directoryNavigation.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                      isActive
+                        ? 'bg-gold-500/10 text-gold-500 border border-gold-500/20'
+                        : 'text-muted hover:text-white hover:bg-white/5'
+                    )}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Bottom navigation */}
+            <div className="pt-4">
+              {bottomNavigation.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                      isActive
+                        ? 'bg-gold-500/10 text-gold-500 border border-gold-500/20'
+                        : 'text-muted hover:text-white hover:bg-white/5'
+                    )}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
 
           {/* Dev mode indicator */}

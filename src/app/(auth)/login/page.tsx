@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/use-toast';
-import { Eye, EyeOff, Zap, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 // Google Icon Component
 function GoogleIcon({ className }: { className?: string }) {
@@ -26,7 +26,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const { signIn, signInWithGoogle, isDevMode, devModeLogin } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -79,15 +79,6 @@ function LoginForm() {
     }
   };
 
-  const handleDevModeLogin = () => {
-    devModeLogin();
-    toast({
-      title: 'Dev Mode Active',
-      description: 'Logged in with development account.',
-      variant: 'success',
-    });
-  };
-
   return (
     <div className="w-full max-w-md">
       {/* Logo */}
@@ -99,28 +90,6 @@ function LoginForm() {
           Reserve<span className="text-gold-500">PTY</span>
         </span>
       </Link>
-
-      {/* Dev Mode Banner */}
-      {isDevMode && (
-        <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-          <div className="flex items-center gap-2 text-amber-500 mb-2">
-            <Zap className="w-4 h-4" />
-            <span className="text-sm font-medium">Development Mode</span>
-          </div>
-          <p className="text-sm text-amber-200/70 mb-3">
-            Skip authentication for testing purposes
-          </p>
-          <Button 
-            onClick={handleDevModeLogin}
-            variant="secondary"
-            size="sm"
-            className="w-full bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/30 text-amber-500"
-          >
-            <Zap className="w-4 h-4 mr-2" />
-            Quick Access (Dev Mode)
-          </Button>
-        </div>
-      )}
 
       {/* Header */}
       <div className="mb-8">
@@ -148,15 +117,7 @@ function LoginForm() {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
-            <Link
-              href="/forgot-password"
-              className="text-sm text-gold-500 hover:text-gold-400 transition-colors"
-            >
-              Forgot password?
-            </Link>
-          </div>
+          <Label htmlFor="password">Password</Label>
           <div className="relative">
             <Input
               id="password"
@@ -179,6 +140,14 @@ function LoginForm() {
                 <Eye className="w-5 h-5" />
               )}
             </button>
+          </div>
+          <div className="text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-gold-500 hover:text-gold-400 transition-colors"
+            >
+              Forgot password?
+            </Link>
           </div>
         </div>
 

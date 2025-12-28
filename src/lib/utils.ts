@@ -131,10 +131,10 @@ export const SECTIONS = {
     description: 'Helicopters and rotorcraft',
   },
   residences: {
-    label: 'Residences',
+    label: 'Residences & Spaces',
     icon: 'Home',
     color: '#3b82f6',
-    description: 'Properties and spaces',
+    description: 'Properties, homes, and meeting spaces',
   },
   boats: {
     label: 'Boats',

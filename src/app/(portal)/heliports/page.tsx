@@ -9,7 +9,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
 import { cn } from '@/lib/utils';
 import {
-  Plane,
   Plus,
   Search,
   MapPin,
@@ -17,12 +16,12 @@ import {
   Star,
   X,
   Navigation,
-  Ruler,
   Edit2,
   Trash2,
+  CircleDot,
 } from 'lucide-react';
 
-interface Airport {
+interface Heliport {
   id: string;
   icao_code: string;
   iata_code: string | null;
@@ -33,15 +32,14 @@ interface Airport {
   longitude: number | null;
   timezone: string | null;
   type: string;
-  runway_length_ft: number | null;
   is_active: boolean;
 }
 
-interface PlaneAsset {
+interface HelicopterAsset {
   id: string;
   name: string;
   details: {
-    homeAirport?: string;
+    homeHeliport?: string;
     cruiseSpeed?: string;
   };
 }
@@ -59,30 +57,28 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return Math.round(R * c);
 }
 
-export default function AirportsPage() {
+export default function HeliportsPage() {
   const { toast } = useToast();
   const { organization, session } = useAuth();
   
-  const [airports, setAirports] = useState<Airport[]>([]);
-  const [planes, setPlanes] = useState<PlaneAsset[]>([]);
-  const [selectedHomeAirport, setSelectedHomeAirport] = useState<Airport | null>(null);
+  const [heliports, setHeliports] = useState<Heliport[]>([]);
+  const [helicopters, setHelicopters] = useState<HelicopterAsset[]>([]);
+  const [selectedHomeHeliport, setSelectedHomeHeliport] = useState<Heliport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingAirport, setEditingAirport] = useState<Airport | null>(null);
-  const [airportForm, setAirportForm] = useState({
-    iata_code: '',
+  const [editingHeliport, setEditingHeliport] = useState<Heliport | null>(null);
+  const [heliportForm, setHeliportForm] = useState({
     icao_code: '',
     name: '',
     city: '',
     country: '',
     latitude: '',
     longitude: '',
-    runway_length_ft: '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch airports and planes
+  // Fetch heliports and helicopters
   useEffect(() => {
     const fetchData = async () => {
       if (!session?.access_token) {
@@ -94,9 +90,9 @@ export default function AirportsPage() {
         const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-        // Fetch airports (type = airport only)
-        const airportsResponse = await fetch(
-          `${baseUrl}/rest/v1/airports?type=eq.airport&is_active=eq.true&order=name.asc`,
+        // Fetch heliports (type = helipad)
+        const heliportsResponse = await fetch(
+          `${baseUrl}/rest/v1/airports?type=eq.helipad&is_active=eq.true&order=name.asc`,
           {
             headers: {
               'apikey': apiKey!,
@@ -105,15 +101,15 @@ export default function AirportsPage() {
           }
         );
 
-        if (airportsResponse.ok) {
-          const airportsData = await airportsResponse.json();
-          setAirports(airportsData);
+        if (heliportsResponse.ok) {
+          const heliportsData = await heliportsResponse.json();
+          setHeliports(heliportsData);
         }
 
-        // Fetch planes to get home airport
+        // Fetch helicopters to get home heliport
         if (organization?.id) {
-          const planesResponse = await fetch(
-            `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&section=eq.planes&is_active=eq.true&select=id,name,details`,
+          const helicoptersResponse = await fetch(
+            `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&section=eq.helicopters&is_active=eq.true&select=id,name,details`,
             {
               headers: {
                 'apikey': apiKey!,
@@ -122,9 +118,9 @@ export default function AirportsPage() {
             }
           );
 
-          if (planesResponse.ok) {
-            const planesData = await planesResponse.json();
-            setPlanes(planesData);
+          if (helicoptersResponse.ok) {
+            const helicoptersData = await helicoptersResponse.json();
+            setHelicopters(helicoptersData);
           }
         }
       } catch (error) {
@@ -137,85 +133,80 @@ export default function AirportsPage() {
     fetchData();
   }, [organization?.id, session?.access_token]);
 
-  // Update home airport when airports load
+  // Update home heliport when data loads
   useEffect(() => {
-    if (planes.length > 0 && airports.length > 0 && !selectedHomeAirport) {
-      const homeCode = planes[0].details?.homeAirport;
+    if (helicopters.length > 0 && heliports.length > 0 && !selectedHomeHeliport) {
+      const homeCode = helicopters[0].details?.homeHeliport;
       if (homeCode) {
-        const home = airports.find(a => 
-          a.iata_code === homeCode || a.icao_code === homeCode
+        const home = heliports.find(h => 
+          h.icao_code === homeCode
         );
-        if (home) setSelectedHomeAirport(home);
+        if (home) setSelectedHomeHeliport(home);
       }
     }
-  }, [planes, airports, selectedHomeAirport]);
+  }, [helicopters, heliports, selectedHomeHeliport]);
 
-  const filteredAirports = airports.filter((airport) => {
+  const filteredHeliports = heliports.filter((heliport) => {
     const searchLower = search.toLowerCase();
     return (
-      airport.iata_code?.toLowerCase().includes(searchLower) ||
-      airport.icao_code?.toLowerCase().includes(searchLower) ||
-      airport.name?.toLowerCase().includes(searchLower) ||
-      airport.city?.toLowerCase().includes(searchLower) ||
-      airport.country?.toLowerCase().includes(searchLower)
+      heliport.icao_code?.toLowerCase().includes(searchLower) ||
+      heliport.name?.toLowerCase().includes(searchLower) ||
+      heliport.city?.toLowerCase().includes(searchLower) ||
+      heliport.country?.toLowerCase().includes(searchLower)
     );
   });
 
-  const getDistanceFromHome = (airport: Airport): number | null => {
-    if (!selectedHomeAirport || !airport.latitude || !airport.longitude || 
-        !selectedHomeAirport.latitude || !selectedHomeAirport.longitude) {
+  const getDistanceFromHome = (heliport: Heliport): number | null => {
+    if (!selectedHomeHeliport || !heliport.latitude || !heliport.longitude || 
+        !selectedHomeHeliport.latitude || !selectedHomeHeliport.longitude) {
       return null;
     }
-    if (airport.id === selectedHomeAirport.id) return 0;
+    if (heliport.id === selectedHomeHeliport.id) return 0;
     return calculateDistance(
-      selectedHomeAirport.latitude,
-      selectedHomeAirport.longitude,
-      airport.latitude,
-      airport.longitude
+      selectedHomeHeliport.latitude,
+      selectedHomeHeliport.longitude,
+      heliport.latitude,
+      heliport.longitude
     );
   };
 
   const openAddModal = () => {
-    setEditingAirport(null);
-    setAirportForm({
-      iata_code: '',
+    setEditingHeliport(null);
+    setHeliportForm({
       icao_code: '',
       name: '',
       city: '',
       country: '',
       latitude: '',
       longitude: '',
-      runway_length_ft: '',
     });
     setShowAddModal(true);
   };
 
-  const openEditModal = (airport: Airport) => {
-    setEditingAirport(airport);
-    setAirportForm({
-      iata_code: airport.iata_code || '',
-      icao_code: airport.icao_code || '',
-      name: airport.name,
-      city: airport.city || '',
-      country: airport.country,
-      latitude: airport.latitude?.toString() || '',
-      longitude: airport.longitude?.toString() || '',
-      runway_length_ft: airport.runway_length_ft?.toString() || '',
+  const openEditModal = (heliport: Heliport) => {
+    setEditingHeliport(heliport);
+    setHeliportForm({
+      icao_code: heliport.icao_code || '',
+      name: heliport.name,
+      city: heliport.city || '',
+      country: heliport.country,
+      latitude: heliport.latitude?.toString() || '',
+      longitude: heliport.longitude?.toString() || '',
     });
     setShowAddModal(true);
   };
 
-  const handleSaveAirport = async () => {
+  const handleSaveHeliport = async () => {
     if (!session?.access_token) return;
-    if (!airportForm.name) {
-      toast({ title: 'Error', description: 'Airport name is required.', variant: 'error' });
+    if (!heliportForm.name) {
+      toast({ title: 'Error', description: 'Heliport name is required.', variant: 'error' });
       return;
     }
-    if (!airportForm.country) {
+    if (!heliportForm.country) {
       toast({ title: 'Error', description: 'Country is required.', variant: 'error' });
       return;
     }
-    if (!airportForm.latitude || !airportForm.longitude) {
+    if (!heliportForm.latitude || !heliportForm.longitude) {
       toast({ title: 'Error', description: 'Latitude and longitude are required for flight calculations.', variant: 'error' });
       return;
     }
@@ -225,28 +216,22 @@ export default function AirportsPage() {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-      // Generate a unique identifier if no codes provided
-      const icaoCode = airportForm.icao_code?.toUpperCase() || null;
-      const iataCode = airportForm.iata_code?.toUpperCase() || null;
-
-      const airportData = {
-        iata_code: iataCode,
-        icao_code: icaoCode || `X${Date.now().toString(36).toUpperCase().slice(-5)}`, // Generate unique code if none provided
-        name: airportForm.name,
-        city: airportForm.city || null,
-        country: airportForm.country,
-        latitude: parseFloat(airportForm.latitude),
-        longitude: parseFloat(airportForm.longitude),
-        runway_length_ft: airportForm.runway_length_ft ? parseInt(airportForm.runway_length_ft) : null,
-        type: 'airport',
+      const heliportData = {
+        icao_code: heliportForm.icao_code?.toUpperCase() || `H${Date.now().toString(36).toUpperCase().slice(-5)}`,
+        iata_code: null,
+        name: heliportForm.name,
+        city: heliportForm.city || null,
+        country: heliportForm.country,
+        latitude: parseFloat(heliportForm.latitude),
+        longitude: parseFloat(heliportForm.longitude),
+        type: 'helipad',
         is_active: true,
       };
 
       let response;
-      if (editingAirport) {
-        // Update existing
+      if (editingHeliport) {
         response = await fetch(
-          `${baseUrl}/rest/v1/airports?id=eq.${editingAirport.id}`,
+          `${baseUrl}/rest/v1/airports?id=eq.${editingHeliport.id}`,
           {
             method: 'PATCH',
             headers: {
@@ -255,11 +240,10 @@ export default function AirportsPage() {
               'Authorization': `Bearer ${session.access_token}`,
               'Prefer': 'return=representation',
             },
-            body: JSON.stringify(airportData),
+            body: JSON.stringify(heliportData),
           }
         );
       } else {
-        // Create new
         response = await fetch(
           `${baseUrl}/rest/v1/airports`,
           {
@@ -270,7 +254,7 @@ export default function AirportsPage() {
               'Authorization': `Bearer ${session.access_token}`,
               'Prefer': 'return=representation',
             },
-            body: JSON.stringify(airportData),
+            body: JSON.stringify(heliportData),
           }
         );
       }
@@ -282,12 +266,12 @@ export default function AirportsPage() {
 
       const result = await response.json();
       
-      if (editingAirport) {
-        setAirports(airports.map(a => a.id === editingAirport.id ? result[0] : a));
-        toast({ title: 'Airport updated', description: `${airportForm.name} has been updated.` });
+      if (editingHeliport) {
+        setHeliports(heliports.map(h => h.id === editingHeliport.id ? result[0] : h));
+        toast({ title: 'Heliport updated', description: `${heliportForm.name} has been updated.` });
       } else {
-        setAirports([...airports, result[0]]);
-        toast({ title: 'Airport added', description: `${airportForm.name} has been added.` });
+        setHeliports([...heliports, result[0]]);
+        toast({ title: 'Heliport added', description: `${heliportForm.name} has been added.` });
       }
       
       setShowAddModal(false);
@@ -298,16 +282,16 @@ export default function AirportsPage() {
     }
   };
 
-  const handleDeleteAirport = async (airport: Airport) => {
+  const handleDeleteHeliport = async (heliport: Heliport) => {
     if (!session?.access_token) return;
-    if (!confirm(`Delete ${airport.name}?`)) return;
+    if (!confirm(`Delete ${heliport.name}?`)) return;
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       const response = await fetch(
-        `${baseUrl}/rest/v1/airports?id=eq.${airport.id}`,
+        `${baseUrl}/rest/v1/airports?id=eq.${heliport.id}`,
         {
           method: 'PATCH',
           headers: {
@@ -321,8 +305,8 @@ export default function AirportsPage() {
 
       if (!response.ok) throw new Error('Failed to delete');
 
-      setAirports(airports.filter(a => a.id !== airport.id));
-      toast({ title: 'Airport deleted', description: `${airport.name} has been removed.` });
+      setHeliports(heliports.filter(h => h.id !== heliport.id));
+      toast({ title: 'Heliport deleted', description: `${heliport.name} has been removed.` });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'error' });
     }
@@ -341,42 +325,42 @@ export default function AirportsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Airports</h1>
-          <p className="text-muted mt-1">Airport directory for flight planning</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Heliports</h1>
+          <p className="text-muted mt-1">Heliport directory for helicopter flight planning</p>
         </div>
         <Button onClick={openAddModal}>
           <Plus className="w-4 h-4 mr-2" />
-          Add Airport
+          Add Heliport
         </Button>
       </div>
 
-      {/* Home Airport Selector */}
-      {planes.length > 0 && (
+      {/* Home Heliport Selector */}
+      {helicopters.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-gold-500">
                 <Star className="w-5 h-5 fill-current" />
-                <span className="font-medium">Home Airport:</span>
+                <span className="font-medium">Home Heliport:</span>
               </div>
               <select
-                value={selectedHomeAirport?.id || ''}
+                value={selectedHomeHeliport?.id || ''}
                 onChange={(e) => {
-                  const airport = airports.find(a => a.id === e.target.value);
-                  setSelectedHomeAirport(airport || null);
+                  const heliport = heliports.find(h => h.id === e.target.value);
+                  setSelectedHomeHeliport(heliport || null);
                 }}
                 className="flex-1 max-w-md px-4 py-2 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
               >
-                <option value="">Select home airport...</option>
-                {airports.map((airport) => (
-                  <option key={airport.id} value={airport.id}>
-                    {airport.icao_code}{airport.iata_code ? ` / ${airport.iata_code}` : ''} - {airport.name}
+                <option value="">Select home heliport...</option>
+                {heliports.map((heliport) => (
+                  <option key={heliport.id} value={heliport.id}>
+                    {heliport.icao_code} - {heliport.name}
                   </option>
                 ))}
               </select>
-              {selectedHomeAirport && (
+              {selectedHomeHeliport && (
                 <span className="text-sm text-muted">
-                  {selectedHomeAirport.city}, {selectedHomeAirport.country}
+                  {selectedHomeHeliport.city}, {selectedHomeHeliport.country}
                 </span>
               )}
             </div>
@@ -388,22 +372,22 @@ export default function AirportsPage() {
       <div className="relative max-w-md">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
         <Input
-          placeholder="Search airports..."
+          placeholder="Search heliports..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-12"
         />
       </div>
 
-      {/* Airports Grid */}
+      {/* Heliports Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredAirports.map((airport) => {
-          const distance = getDistanceFromHome(airport);
-          const isHome = selectedHomeAirport?.id === airport.id;
+        {filteredHeliports.map((heliport) => {
+          const distance = getDistanceFromHome(heliport);
+          const isHome = selectedHomeHeliport?.id === heliport.id;
           
           return (
             <Card 
-              key={airport.id} 
+              key={heliport.id} 
               className={cn(
                 'transition-all hover:border-gold-500/30 group',
                 isHome && 'border-gold-500 bg-gold-500/5'
@@ -416,36 +400,32 @@ export default function AirportsPage() {
                       'w-12 h-12 rounded-lg flex items-center justify-center',
                       isHome ? 'bg-gold-500/20' : 'bg-surface'
                     )}>
-                      <span className={cn(
-                        'text-sm font-bold',
-                        isHome ? 'text-gold-500' : 'text-white'
-                      )}>
-                        {airport.icao_code}
-                      </span>
+                      <CircleDot className={cn(
+                        'w-6 h-6',
+                        isHome ? 'text-gold-500' : 'text-emerald-400'
+                      )} />
                     </div>
                     <div className="min-w-0">
                       <h3 className="font-medium text-white text-sm line-clamp-1">
-                        {airport.name}
+                        {heliport.name}
                       </h3>
                       <p className="text-xs text-muted flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {airport.city}, {airport.country}
+                        {heliport.city}, {heliport.country}
                       </p>
-                      {airport.iata_code && (
-                        <p className="text-xs text-gold-500/70">IATA: {airport.iata_code}</p>
-                      )}
+                      <p className="text-xs text-emerald-400/70">Code: {heliport.icao_code}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {isHome && <Star className="w-4 h-4 text-gold-500 fill-current" />}
                     <button
-                      onClick={() => openEditModal(airport)}
+                      onClick={() => openEditModal(heliport)}
                       className="p-1.5 rounded hover:bg-surface text-muted hover:text-white"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => handleDeleteAirport(airport)}
+                      onClick={() => handleDeleteHeliport(heliport)}
                       className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -453,17 +433,9 @@ export default function AirportsPage() {
                   </div>
                 </div>
                 
-                {/* Runway Length */}
-                {airport.runway_length_ft && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                    <Ruler className="w-3 h-3" />
-                    <span>Runway: {airport.runway_length_ft.toLocaleString()} ft</span>
-                  </div>
-                )}
-                
                 {/* Distance from home */}
                 {distance !== null && !isHome && (
-                  <div className="mt-2 pt-2 border-t border-border flex items-center justify-between">
+                  <div className="mt-3 pt-2 border-t border-border flex items-center justify-between">
                     <span className="text-xs text-muted flex items-center gap-1">
                       <Navigation className="w-3 h-3" />
                       Distance from home
@@ -475,9 +447,9 @@ export default function AirportsPage() {
                 )}
 
                 {/* Coordinates */}
-                {airport.latitude && airport.longitude ? (
+                {heliport.latitude && heliport.longitude ? (
                   <div className="mt-2 text-xs text-muted/60">
-                    {airport.latitude.toFixed(4)}°, {airport.longitude.toFixed(4)}°
+                    {heliport.latitude.toFixed(4)}°, {heliport.longitude.toFixed(4)}°
                   </div>
                 ) : (
                   <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/20">
@@ -493,29 +465,29 @@ export default function AirportsPage() {
         })}
       </div>
 
-      {filteredAirports.length === 0 && (
+      {filteredHeliports.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
-            <Plane className="w-12 h-12 text-muted mx-auto mb-3" />
+            <CircleDot className="w-12 h-12 text-muted mx-auto mb-3" />
             <p className="text-muted">
-              {search ? `No airports found matching "${search}"` : 'No airports in directory'}
+              {search ? `No heliports found matching "${search}"` : 'No heliports in directory'}
             </p>
             <Button className="mt-4" onClick={openAddModal}>
               <Plus className="w-4 h-4 mr-2" />
-              Add First Airport
+              Add First Heliport
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Add/Edit Airport Modal */}
+      {/* Add/Edit Heliport Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
           <Card className="relative max-w-md w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-xl font-display">
-                {editingAirport ? 'Edit Airport' : 'Add Airport'}
+                {editingHeliport ? 'Edit Heliport' : 'Add Heliport'}
               </CardTitle>
               <button
                 onClick={() => setShowAddModal(false)}
@@ -525,65 +497,41 @@ export default function AirportsPage() {
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>ICAO Code</Label>
-                  <Input
-                    placeholder="KMIA"
-                    value={airportForm.icao_code}
-                    onChange={(e) => setAirportForm({ ...airportForm, icao_code: e.target.value.toUpperCase() })}
-                    maxLength={4}
-                  />
-                  <p className="text-xs text-muted mt-1">4-letter code (optional)</p>
-                </div>
-                <div>
-                  <Label>IATA Code</Label>
-                  <Input
-                    placeholder="MIA"
-                    value={airportForm.iata_code}
-                    onChange={(e) => setAirportForm({ ...airportForm, iata_code: e.target.value.toUpperCase() })}
-                    maxLength={3}
-                  />
-                  <p className="text-xs text-muted mt-1">3-letter code (optional)</p>
-                </div>
+              <div>
+                <Label>Heliport Code</Label>
+                <Input
+                  placeholder="HPAC"
+                  value={heliportForm.icao_code}
+                  onChange={(e) => setHeliportForm({ ...heliportForm, icao_code: e.target.value.toUpperCase() })}
+                  maxLength={6}
+                />
+                <p className="text-xs text-muted mt-1">Identifier code (auto-generated if empty)</p>
               </div>
               <div>
-                <Label>Airport Name *</Label>
+                <Label>Heliport Name *</Label>
                 <Input
-                  placeholder="Miami International Airport"
-                  value={airportForm.name}
-                  onChange={(e) => setAirportForm({ ...airportForm, name: e.target.value })}
+                  placeholder="Panama City Downtown Heliport"
+                  value={heliportForm.name}
+                  onChange={(e) => setHeliportForm({ ...heliportForm, name: e.target.value })}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>City</Label>
                   <Input
-                    placeholder="Miami"
-                    value={airportForm.city}
-                    onChange={(e) => setAirportForm({ ...airportForm, city: e.target.value })}
+                    placeholder="Panama City"
+                    value={heliportForm.city}
+                    onChange={(e) => setHeliportForm({ ...heliportForm, city: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label>Country *</Label>
                   <Input
-                    placeholder="USA"
-                    value={airportForm.country}
-                    onChange={(e) => setAirportForm({ ...airportForm, country: e.target.value })}
+                    placeholder="Panama"
+                    value={heliportForm.country}
+                    onChange={(e) => setHeliportForm({ ...heliportForm, country: e.target.value })}
                   />
                 </div>
-              </div>
-              
-              {/* Runway Length */}
-              <div>
-                <Label>Runway / Strip Length (ft)</Label>
-                <Input
-                  type="number"
-                  placeholder="10000"
-                  value={airportForm.runway_length_ft}
-                  onChange={(e) => setAirportForm({ ...airportForm, runway_length_ft: e.target.value })}
-                />
-                <p className="text-xs text-muted mt-1">Useful for aircraft compatibility</p>
               </div>
 
               {/* Coordinates */}
@@ -597,9 +545,9 @@ export default function AirportsPage() {
                     <Input
                       type="number"
                       step="0.0001"
-                      placeholder="Latitude (e.g., 25.7959)"
-                      value={airportForm.latitude}
-                      onChange={(e) => setAirportForm({ ...airportForm, latitude: e.target.value })}
+                      placeholder="Latitude (e.g., 8.9824)"
+                      value={heliportForm.latitude}
+                      onChange={(e) => setHeliportForm({ ...heliportForm, latitude: e.target.value })}
                     />
                     <p className="text-xs text-muted mt-1">-90 to 90</p>
                   </div>
@@ -607,9 +555,9 @@ export default function AirportsPage() {
                     <Input
                       type="number"
                       step="0.0001"
-                      placeholder="Longitude (e.g., -80.2870)"
-                      value={airportForm.longitude}
-                      onChange={(e) => setAirportForm({ ...airportForm, longitude: e.target.value })}
+                      placeholder="Longitude (e.g., -79.5199)"
+                      value={heliportForm.longitude}
+                      onChange={(e) => setHeliportForm({ ...heliportForm, longitude: e.target.value })}
                     />
                     <p className="text-xs text-muted mt-1">-180 to 180</p>
                   </div>
@@ -622,10 +570,10 @@ export default function AirportsPage() {
                 </Button>
                 <Button 
                   className="flex-1" 
-                  onClick={handleSaveAirport}
-                  disabled={isSaving || !airportForm.name || !airportForm.country || !airportForm.latitude || !airportForm.longitude}
+                  onClick={handleSaveHeliport}
+                  disabled={isSaving || !heliportForm.name || !heliportForm.country || !heliportForm.latitude || !heliportForm.longitude}
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingAirport ? 'Update' : 'Add Airport')}
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingHeliport ? 'Update' : 'Add Heliport')}
                 </Button>
               </div>
             </CardContent>
