@@ -355,7 +355,7 @@ export default function ReservationsHistoryPage() {
               {(['all', 'active', 'past', 'canceled'] as FilterStatus[]).map((status) => (
                 <Button
                   key={status}
-                  variant={filterStatus === status ? 'default' : 'outline'}
+                  variant={filterStatus === status ? 'primary' : 'outline'}
                   size="sm"
                   onClick={() => setFilterStatus(status)}
                   className={cn(

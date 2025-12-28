@@ -422,7 +422,7 @@ export default function LocationsPage() {
             </div>
             <div className="flex gap-2">
               <Button
-                variant={filterType === 'all' ? 'default' : 'outline'}
+                variant={filterType === 'all' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('all')}
                 className={cn(
                   filterType === 'all' ? 'bg-gold-500 text-navy-900' : 'border-border text-muted'
@@ -432,7 +432,7 @@ export default function LocationsPage() {
                 All
               </Button>
               <Button
-                variant={filterType === 'planes' ? 'default' : 'outline'}
+                variant={filterType === 'planes' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('planes')}
                 className={cn(
                   filterType === 'planes' ? 'bg-gold-500 text-navy-900' : 'border-border text-muted'
@@ -443,7 +443,7 @@ export default function LocationsPage() {
                 Planes
               </Button>
               <Button
-                variant={filterType === 'helicopters' ? 'default' : 'outline'}
+                variant={filterType === 'helicopters' ? 'primary' : 'outline'}
                 onClick={() => setFilterType('helicopters')}
                 className={cn(
                   filterType === 'helicopters' ? 'bg-gold-500 text-navy-900' : 'border-border text-muted'
