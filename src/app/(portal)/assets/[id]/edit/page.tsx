@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn, SECTIONS } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -112,6 +113,7 @@ export default function EditAssetPage() {
   const assetId = params.id as string;
   const { toast } = useToast();
   const { organization, session } = useAuth();
+  const { language, t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -212,7 +214,7 @@ export default function EditAssetPage() {
 
         const data = await response.json();
         if (data.length === 0) {
-          toast({ title: 'Asset not found', variant: 'error' });
+          toast({ title: language === 'es' ? 'Activo no encontrado' : 'Asset not found', variant: 'error' });
           router.push('/assets');
           return;
         }
@@ -281,7 +283,7 @@ export default function EditAssetPage() {
         }
       } catch (error: any) {
         console.error('Error fetching asset:', error);
-        toast({ title: 'Error loading asset', description: error.message, variant: 'error' });
+        toast({ title: language === 'es' ? 'Error al cargar activo' : 'Error loading asset', description: error.message, variant: 'error' });
       } finally {
         setIsLoading(false);
       }
@@ -303,7 +305,7 @@ export default function EditAssetPage() {
     if (!files || files.length === 0) return;
 
     if (!session?.access_token || !organization?.id) {
-      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Debes iniciar sesión.' : 'You must be logged in.', variant: 'error' });
       return;
     }
 
@@ -316,7 +318,7 @@ export default function EditAssetPage() {
       for (const file of Array.from(files)) {
         if (!file.type.startsWith('image/')) continue;
         if (file.size > 5 * 1024 * 1024) {
-          toast({ title: 'File too large', description: `${file.name} exceeds 5MB.`, variant: 'error' });
+          toast({ title: language === 'es' ? 'Archivo muy grande' : 'File too large', description: language === 'es' ? `${file.name} excede 5MB.` : `${file.name} exceeds 5MB.`, variant: 'error' });
           continue;
         }
 
@@ -338,16 +340,16 @@ export default function EditAssetPage() {
         );
 
         if (!uploadResponse.ok) {
-          toast({ title: 'Upload failed', description: `Failed to upload ${file.name}.`, variant: 'error' });
+          toast({ title: language === 'es' ? 'Error al subir' : 'Upload failed', description: language === 'es' ? `Error al subir ${file.name}.` : `Failed to upload ${file.name}.`, variant: 'error' });
           continue;
         }
 
         const publicUrl = `${baseUrl}/storage/v1/object/public/asset-photos/${fileName}`;
         setPhotos((prev) => [...prev, publicUrl]);
-        toast({ title: 'Photo uploaded', description: `${file.name} uploaded.` });
+        toast({ title: language === 'es' ? 'Foto subida' : 'Photo uploaded', description: language === 'es' ? `${file.name} subida.` : `${file.name} uploaded.` });
       }
     } catch (error: any) {
-      toast({ title: 'Upload error', description: error.message, variant: 'error' });
+      toast({ title: language === 'es' ? 'Error al subir' : 'Upload error', description: error.message, variant: 'error' });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -456,18 +458,18 @@ export default function EditAssetPage() {
         throw new Error(errorText);
       }
 
-      toast({ title: 'Asset updated', description: 'Changes saved successfully.' });
+      toast({ title: language === 'es' ? 'Activo actualizado' : 'Asset updated', description: language === 'es' ? 'Cambios guardados exitosamente.' : 'Changes saved successfully.' });
       router.push('/assets');
     } catch (error: any) {
       console.error('Error updating asset:', error);
-      toast({ title: 'Error saving', description: error.message, variant: 'error' });
+      toast({ title: language === 'es' ? 'Error al guardar' : 'Error saving', description: error.message, variant: 'error' });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this asset? This action cannot be undone.')) return;
+    if (!confirm(language === 'es' ? '¿Estás seguro de que deseas eliminar este activo? Esta acción no se puede deshacer.' : 'Are you sure you want to delete this asset? This action cannot be undone.')) return;
     if (!session?.access_token) return;
 
     setIsDeleting(true);
@@ -495,10 +497,10 @@ export default function EditAssetPage() {
 
       if (!response.ok) throw new Error('Failed to delete asset');
 
-      toast({ title: 'Asset deleted', description: 'The asset has been removed.' });
+      toast({ title: language === 'es' ? 'Activo eliminado' : 'Asset deleted', description: language === 'es' ? 'El activo ha sido eliminado.' : 'The asset has been removed.' });
       router.push('/assets');
     } catch (error: any) {
-      toast({ title: 'Error deleting', description: error.message, variant: 'error' });
+      toast({ title: language === 'es' ? 'Error al eliminar' : 'Error deleting', description: error.message, variant: 'error' });
     } finally {
       setIsDeleting(false);
     }

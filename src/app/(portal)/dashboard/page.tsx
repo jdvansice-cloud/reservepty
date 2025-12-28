@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn, SECTIONS, formatDate, formatRelativeTime, isDevMode } from '@/lib/utils';
+import { cn, SECTIONS, formatDate, formatRelativeTime } from '@/lib/utils';
 import {
   Plane,
   Ship,
@@ -19,7 +20,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Sparkles,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
@@ -91,14 +91,21 @@ const quickActions = [
 
 export default function DashboardPage() {
   const { profile, organization, membership } = useAuth();
+  const { t, language } = useLanguage();
   const [greeting, setGreeting] = useState('');
 
   useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
-  }, []);
+    if (language === 'es') {
+      if (hour < 12) setGreeting('Buenos días');
+      else if (hour < 18) setGreeting('Buenas tardes');
+      else setGreeting('Buenas noches');
+    } else {
+      if (hour < 12) setGreeting('Good morning');
+      else if (hour < 18) setGreeting('Good afternoon');
+      else setGreeting('Good evening');
+    }
+  }, [language]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -136,18 +143,14 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">
-            {greeting}, {profile?.first_name || 'there'}
+            {greeting}, {profile?.first_name || (language === 'es' ? 'usuario' : 'there')}
           </h1>
           <p className="text-muted mt-1">
-            Here's what's happening with your assets today.
+            {language === 'es' 
+              ? 'Esto es lo que está pasando con tus activos hoy.'
+              : "Here's what's happening with your assets today."}
           </p>
         </div>
-        {isDevMode() && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-amber-400 text-sm font-medium">Demo Data</span>
-          </div>
-        )}
       </div>
 
       {/* Stats Grid */}
@@ -156,7 +159,7 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">Total Assets</p>
+                <p className="text-sm text-muted">{t('dashboard.totalAssets')}</p>
                 <p className="text-3xl font-display font-bold text-white mt-1">
                   {mockStats.totalAssets}
                 </p>
@@ -172,7 +175,7 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">Active Bookings</p>
+                <p className="text-sm text-muted">{t('dashboard.activeBookings')}</p>
                 <p className="text-3xl font-display font-bold text-white mt-1">
                   {mockStats.activeBookings}
                 </p>
@@ -188,7 +191,7 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">Total Members</p>
+                <p className="text-sm text-muted">{t('dashboard.totalMembers')}</p>
                 <p className="text-3xl font-display font-bold text-white mt-1">
                   {mockStats.totalMembers}
                 </p>
@@ -204,7 +207,7 @@ export default function DashboardPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted">This Month</p>
+                <p className="text-sm text-muted">{language === 'es' ? 'Este Mes' : 'This Month'}</p>
                 <p className="text-3xl font-display font-bold text-white mt-1">
                   {mockStats.thisMonthBookings}
                 </p>
@@ -237,19 +240,18 @@ export default function DashboardPage() {
                       />
                     </div>
                     <div>
-                      <p className="text-sm text-muted capitalize">{stat.section}</p>
+                      <p className="text-sm text-muted capitalize">{t(`assets.section.${stat.section}`)}</p>
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-display font-bold text-white">
                           {stat.count}
                         </span>
-                        <span className="text-xs text-muted">assets</span>
+                        <span className="text-xs text-muted">{language === 'es' ? 'activos' : 'assets'}</span>
                       </div>
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-border">
                     <p className="text-xs text-muted">
-                      <span className="text-white font-medium">{stat.bookings}</span> bookings
-                      this month
+                      <span className="text-white font-medium">{stat.bookings}</span> {language === 'es' ? 'reservas este mes' : 'bookings this month'}
                     </p>
                   </div>
                 </CardContent>
@@ -264,10 +266,10 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-4">
-              <CardTitle className="text-lg font-display">Recent Bookings</CardTitle>
+              <CardTitle className="text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
               <Link href="/calendar">
                 <Button variant="ghost" size="sm">
-                  View all
+                  {language === 'es' ? 'Ver todo' : 'View all'}
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
@@ -307,7 +309,7 @@ export default function DashboardPage() {
                         )}
                       >
                         <StatusIcon className="w-3.5 h-3.5" />
-                        {booking.status}
+                        {t(`bookings.status.${booking.status}`)}
                       </div>
                     </div>
                   );

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
 import {
   Calendar,
@@ -121,6 +122,7 @@ type FilterStatus = 'all' | 'active' | 'past' | 'canceled';
 export default function ReservationsHistoryPage() {
   const { session, organization } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -165,7 +167,7 @@ export default function ReservationsHistoryPage() {
         }
       } catch (error) {
         console.error('Error fetching reservations:', error);
-        toast({ title: 'Error', description: 'Failed to load reservations', variant: 'error' });
+        toast({ title: t('common.error'), description: language === 'es' ? 'Error al cargar reservaciones' : 'Failed to load reservations', variant: 'error' });
       } finally {
         setIsLoading(false);
       }
@@ -331,8 +333,8 @@ export default function ReservationsHistoryPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-display font-bold text-white">Reservation History</h1>
-        <p className="text-muted mt-1">View and track all booking activity</p>
+        <h1 className="text-2xl font-display font-bold text-white">{t('bookings.title')}</h1>
+        <p className="text-muted mt-1">{t('bookings.subtitle')}</p>
       </div>
 
       {/* Filters */}
@@ -343,7 +345,7 @@ export default function ReservationsHistoryPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
               <Input
-                placeholder="Search by title, asset, or member..."
+                placeholder={language === 'es' ? 'Buscar por título, activo o miembro...' : 'Search by title, asset, or member...'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 bg-navy-800 border-border"
@@ -364,7 +366,7 @@ export default function ReservationsHistoryPage() {
                       : 'border-border text-muted hover:text-white'
                   )}
                 >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {t(`bookings.filter.${status}`)}
                   <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-black/20 text-xs">
                     {counts[status]}
                   </span>
@@ -378,9 +380,9 @@ export default function ReservationsHistoryPage() {
               onChange={(e) => setFilterSection(e.target.value)}
               className="px-3 py-2 bg-navy-800 border border-border rounded-lg text-white text-sm"
             >
-              <option value="all">All Sections</option>
+              <option value="all">{language === 'es' ? 'Todas las Secciones' : 'All Sections'}</option>
               {Object.entries(SECTIONS).map(([key, section]) => (
-                <option key={key} value={key}>{section.label}</option>
+                <option key={key} value={key}>{t(`assets.section.${key}`)}</option>
               ))}
             </select>
           </div>
@@ -488,7 +490,7 @@ export default function ReservationsHistoryPage() {
           <div className="absolute inset-0 bg-black/70" onClick={() => setSelectedReservation(null)} />
           <Card className="relative z-10 w-full max-w-2xl bg-surface border-border max-h-[90vh] overflow-hidden flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between pb-2 shrink-0">
-              <CardTitle className="text-xl font-display">Reservation Details</CardTitle>
+              <CardTitle className="text-xl font-display">{language === 'es' ? 'Detalles de Reserva' : 'Reservation Details'}</CardTitle>
               <Button variant="ghost" size="sm" onClick={() => setSelectedReservation(null)}>
                 <X className="w-4 h-4" />
               </Button>
@@ -497,61 +499,63 @@ export default function ReservationsHistoryPage() {
               {/* Reservation Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted text-xs">Title</Label>
-                  <p className="text-white">{selectedReservation.title || 'Untitled'}</p>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Título' : 'Title'}</Label>
+                  <p className="text-white">{selectedReservation.title || (language === 'es' ? 'Sin título' : 'Untitled')}</p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">Status</Label>
+                  <Label className="text-muted text-xs">{t('common.status')}</Label>
                   <p className={cn(
                     "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm border",
                     STATUS_CONFIG[selectedReservation.status]?.color
                   )}>
-                    {STATUS_CONFIG[selectedReservation.status]?.label}
+                    {t(`bookings.status.${selectedReservation.status}`)}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">Asset</Label>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Activo' : 'Asset'}</Label>
                   <p className="text-white">{selectedReservation.asset?.name}</p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">Section</Label>
-                  <p className="text-white capitalize">{selectedReservation.asset?.section}</p>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Sección' : 'Section'}</Label>
+                  <p className="text-white capitalize">{t(`assets.section.${selectedReservation.asset?.section}`)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">Start</Label>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Inicio' : 'Start'}</Label>
                   <p className="text-white">{formatDateTime(selectedReservation.start_datetime)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">End</Label>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Fin' : 'End'}</Label>
                   <p className="text-white">{formatDateTime(selectedReservation.end_datetime)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted text-xs">Requested By</Label>
+                  <Label className="text-muted text-xs">{language === 'es' ? 'Solicitado por' : 'Requested By'}</Label>
                   <p className="text-white">{getUserName(selectedReservation.profile)}</p>
                 </div>
                 {selectedReservation.approved_by && (
                   <div>
                     <Label className="text-muted text-xs">
-                      {selectedReservation.status === 'approved' ? 'Approved By' : 'Reviewed By'}
+                      {selectedReservation.status === 'approved' 
+                        ? (language === 'es' ? 'Aprobado por' : 'Approved By') 
+                        : (language === 'es' ? 'Revisado por' : 'Reviewed By')}
                     </Label>
                     <p className="text-white">{getUserName(selectedReservation.approver)}</p>
                   </div>
                 )}
                 {selectedReservation.guest_count && (
                   <div>
-                    <Label className="text-muted text-xs">Guests</Label>
+                    <Label className="text-muted text-xs">{language === 'es' ? 'Invitados' : 'Guests'}</Label>
                     <p className="text-white">{selectedReservation.guest_count}</p>
                   </div>
                 )}
                 {selectedReservation.notes && (
                   <div className="col-span-2">
-                    <Label className="text-muted text-xs">Notes</Label>
+                    <Label className="text-muted text-xs">{language === 'es' ? 'Notas' : 'Notes'}</Label>
                     <p className="text-white">{selectedReservation.notes}</p>
                   </div>
                 )}
                 {selectedReservation.rejected_reason && (
                   <div className="col-span-2">
-                    <Label className="text-muted text-xs">Rejection Reason</Label>
+                    <Label className="text-muted text-xs">{language === 'es' ? 'Razón del Rechazo' : 'Rejection Reason'}</Label>
                     <p className="text-red-400">{selectedReservation.rejected_reason}</p>
                   </div>
                 )}
@@ -560,7 +564,7 @@ export default function ReservationsHistoryPage() {
               {/* Flight Metadata (for aviation) */}
               {selectedReservation.metadata?.legs && (
                 <div>
-                  <Label className="text-muted text-xs mb-2 block">Flight Itinerary</Label>
+                  <Label className="text-muted text-xs mb-2 block">{language === 'es' ? 'Itinerario de Vuelo' : 'Flight Itinerary'}</Label>
                   <div className="space-y-2">
                     {selectedReservation.metadata.legs.map((leg: any, index: number) => (
                       <div key={index} className="flex items-center gap-2 text-sm bg-navy-800 p-2 rounded">
@@ -568,7 +572,7 @@ export default function ReservationsHistoryPage() {
                           "px-1.5 py-0.5 rounded text-xs",
                           leg.type === 'customer' ? 'bg-gold-500/20 text-gold-400' : 'bg-gray-500/20 text-gray-400'
                         )}>
-                          {leg.type === 'customer' ? 'PAX' : 'Empty'}
+                          {leg.type === 'customer' ? 'PAX' : (language === 'es' ? 'Vacío' : 'Empty')}
                         </span>
                         <span className="text-white">{leg.departure}</span>
                         <ArrowRight className="w-3 h-3 text-muted" />
@@ -584,7 +588,7 @@ export default function ReservationsHistoryPage() {
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <History className="w-4 h-4 text-gold-400" />
-                  <Label className="text-white">Change History</Label>
+                  <Label className="text-white">{language === 'es' ? 'Historial de Cambios' : 'Change History'}</Label>
                 </div>
 
                 {isLoadingLogs ? (
@@ -602,7 +606,7 @@ export default function ReservationsHistoryPage() {
                             <span className={cn("font-medium", getActionColor(log.action))}>
                               {getActionLabel(log.action)}
                             </span>
-                            <span className="text-muted"> by </span>
+                            <span className="text-muted"> {language === 'es' ? 'por' : 'by'} </span>
                             <span className="text-white">{getUserName(log.profile)}</span>
                           </div>
                           <span className="text-xs text-muted shrink-0">
@@ -643,20 +647,20 @@ export default function ReservationsHistoryPage() {
                   </div>
                 ) : (
                   <div className="text-center py-6 text-muted">
-                    <p>No change history recorded</p>
-                    <p className="text-xs mt-1">Changes will be tracked going forward</p>
+                    <p>{language === 'es' ? 'Sin historial de cambios' : 'No change history recorded'}</p>
+                    <p className="text-xs mt-1">{language === 'es' ? 'Los cambios se registrarán en adelante' : 'Changes will be tracked going forward'}</p>
                   </div>
                 )}
               </div>
 
               {/* Timestamps */}
               <div className="pt-4 border-t border-border text-xs text-muted flex gap-4">
-                <span>Created: {formatDateTime(selectedReservation.created_at)}</span>
+                <span>{language === 'es' ? 'Creado' : 'Created'}: {formatDateTime(selectedReservation.created_at)}</span>
                 {selectedReservation.updated_at !== selectedReservation.created_at && (
-                  <span>Updated: {formatDateTime(selectedReservation.updated_at)}</span>
+                  <span>{language === 'es' ? 'Actualizado' : 'Updated'}: {formatDateTime(selectedReservation.updated_at)}</span>
                 )}
                 {selectedReservation.canceled_at && (
-                  <span>Canceled: {formatDateTime(selectedReservation.canceled_at)}</span>
+                  <span>{language === 'es' ? 'Cancelado' : 'Canceled'}: {formatDateTime(selectedReservation.canceled_at)}</span>
                 )}
               </div>
             </CardContent>

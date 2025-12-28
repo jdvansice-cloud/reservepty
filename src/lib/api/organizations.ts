@@ -87,7 +87,6 @@ export async function createOrganization(input: {
   billingEmail?: string;
   sections: ('planes' | 'helicopters' | 'residences' | 'watercraft')[];
   seatLimit?: number;
-  isDevMode?: boolean;
 }): Promise<Organization> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -118,14 +117,14 @@ export async function createOrganization(input: {
 
   if (memberError) throw memberError;
 
-  // Create subscription
+  // Create subscription with 14-day trial
   const { data: subscription, error: subError } = await supabase
     .from('subscriptions')
     .insert({
       organization_id: org.id,
-      status: input.isDevMode ? 'complimentary' : 'trial',
-      seat_limit: input.seatLimit || (input.isDevMode ? 100 : 5),
-      trial_ends_at: input.isDevMode ? null : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'trial',
+      seat_limit: input.seatLimit || 5,
+      trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select()
     .single();

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -64,6 +65,7 @@ const SECTION_ICONS: Record<string, React.ElementType> = {
 export default function PendingApprovalsPage() {
   const { session, user, organization } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
 
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,16 +147,18 @@ export default function PendingApprovalsPage() {
       }
 
       toast({
-        title: action === 'approved' ? 'Aprobado' : 'Rechazado',
+        title: action === 'approved' 
+          ? (language === 'es' ? 'Aprobado' : 'Approved')
+          : (language === 'es' ? 'Rechazado' : 'Rejected'),
         description: action === 'approved' 
-          ? 'La reserva ha sido aprobada por ti'
-          : 'La reserva ha sido rechazada',
+          ? (language === 'es' ? 'La reserva ha sido aprobada por ti' : 'The booking has been approved by you')
+          : (language === 'es' ? 'La reserva ha sido rechazada' : 'The booking has been rejected'),
       });
 
       // Remove from list
       setApprovals(prev => prev.filter(a => a.id !== approvalId));
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo procesar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo procesar' : 'Could not process', variant: 'error' });
     } finally {
       setProcessingId(null);
     }
@@ -231,16 +235,16 @@ export default function PendingApprovalsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold text-white">Aprobaciones Pendientes</h1>
-        <p className="text-muted mt-1">Reservas que requieren tu aprobación</p>
+        <h1 className="text-2xl font-display font-bold text-white">{t('approvals.title')}</h1>
+        <p className="text-muted mt-1">{t('approvals.subtitle')}</p>
       </div>
 
       {approvals.length === 0 ? (
         <Card className="bg-surface border-border">
           <CardContent className="py-12 text-center">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-white mb-2">Sin aprobaciones pendientes</h3>
-            <p className="text-muted">No tienes reservas esperando tu aprobación</p>
+            <h3 className="text-lg font-semibold text-white mb-2">{t('approvals.noApprovals')}</h3>
+            <p className="text-muted">{language === 'es' ? 'No tienes reservas esperando tu aprobación' : 'You have no reservations waiting for approval'}</p>
           </CardContent>
         </Card>
       ) : (
@@ -264,10 +268,10 @@ export default function PendingApprovalsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold text-white">
-                          {approval.reservation?.title || 'Reserva'}
+                          {approval.reservation?.title || (language === 'es' ? 'Reserva' : 'Reservation')}
                         </h3>
                         <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                          Pendiente
+                          {t('approvals.pending')}
                         </span>
                       </div>
 
@@ -310,7 +314,7 @@ export default function PendingApprovalsPage() {
                           ) : (
                             <>
                               <CheckCircle2 className="w-4 h-4 mr-1" />
-                              Aprobar
+                              {t('approvals.approve')}
                             </>
                           )}
                         </Button>
@@ -322,7 +326,7 @@ export default function PendingApprovalsPage() {
                           className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                         >
                           <XCircle className="w-4 h-4 mr-1" />
-                          Rechazar
+                          {t('approvals.reject')}
                         </Button>
                       </div>
                     </div>

@@ -9,13 +9,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Check if we're in development mode (bypass payments, etc.)
- */
-export function isDevMode(): boolean {
-  return process.env.NEXT_PUBLIC_DEV_MODE === 'true';
-}
-
-/**
  * Format currency for display
  */
 export function formatCurrency(

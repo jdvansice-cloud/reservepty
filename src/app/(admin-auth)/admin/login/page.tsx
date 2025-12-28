@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createBrowserClient } from '@supabase/ssr';
 import { Button } from '@/components/ui/button';
 import { Shield, Eye, EyeOff, AlertCircle, Lock } from 'lucide-react';
-import { isDevMode } from '@/lib/utils';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -15,35 +15,59 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
 
-    // Dev mode bypass
-    if (isDevMode()) {
-      // Simulate login delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      router.push('/admin');
-      return;
-    }
-
     try {
-      // TODO: Implement actual admin authentication
-      // This would check against platform_admins table
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For now, show error if not in dev mode
-      setError('Admin authentication not yet configured. Enable DEV_MODE for testing.');
+      // Sign in with Supabase
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!authData.user) {
+        setError('Authentication failed');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if user is a platform admin
+      const { data: adminData, error: adminError } = await supabase
+        .from('platform_admins')
+        .select('*')
+        .eq('user_id', authData.user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (adminError || !adminData) {
+        // Sign out if not an admin
+        await supabase.auth.signOut();
+        setError('You do not have admin access to this portal.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Store admin session info
+      localStorage.setItem('adminRole', adminData.role);
+      router.push('/admin');
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleDevLogin = () => {
-    router.push('/admin');
   };
 
   return (
@@ -118,22 +142,6 @@ export default function AdminLoginPage() {
                 Access the platform administration dashboard
               </p>
             </div>
-
-            {/* Dev mode quick login */}
-            {isDevMode() && (
-              <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400 mb-3">
-                  🔧 Development mode enabled
-                </p>
-                <Button
-                  onClick={handleDevLogin}
-                  className="w-full bg-red-500 hover:bg-red-600 text-white"
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Quick Admin Access
-                </Button>
-              </div>
-            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (

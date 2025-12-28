@@ -9,8 +9,10 @@ const protectedRoutes = [
   '/members',
   '/tiers',
   '/settings',
-  '/bookings',
+  '/reservations',
+  '/approvals',
   '/onboarding',
+  '/upgrade',
 ];
 
 // Routes that should redirect to dashboard if authenticated
@@ -31,25 +33,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for dev mode session in cookies (client-side localStorage won't work here)
-  const devModeActive = request.cookies.get('devModeActive')?.value === 'true';
-  const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
-
-  // Get real user session
-  const { response, user } = await updateSession(request);
-
-  // Check if authenticated (either dev mode or real user)
-  const isAuthenticated = user || (isDevMode && devModeActive);
+  // Get real user session with error handling
+  let response: NextResponse;
+  let user = null;
+  
+  try {
+    const sessionResult = await updateSession(request);
+    response = sessionResult.response;
+    user = sessionResult.user;
+  } catch (error) {
+    console.error('Middleware session error:', error);
+    // Continue without auth on error - pages will handle auth state
+    response = NextResponse.next();
+  }
 
   // Handle protected routes
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
-  if (isProtectedRoute && !isAuthenticated) {
-    // In dev mode, allow access but redirect to login if no dev session
-    if (isDevMode) {
-      // Allow through in dev mode - the client-side will handle dev mode auth
-      return response;
-    }
-    
+  if (isProtectedRoute && !user) {
     const url = new URL('/login', request.url);
     url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
@@ -57,7 +57,7 @@ export async function middleware(request: NextRequest) {
 
   // Handle auth routes (redirect to dashboard if already authenticated)
   const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-  if (isAuthRoute && isAuthenticated) {
+  if (isAuthRoute && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

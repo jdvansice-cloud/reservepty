@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { cn, isDevMode } from '@/lib/utils';
+import { createBrowserClient } from '@supabase/ssr';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
@@ -17,7 +18,6 @@ import {
   X,
   Bell,
   FileText,
-  Zap,
   ChevronDown,
   Search,
 } from 'lucide-react';
@@ -31,12 +31,13 @@ const navigation = [
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
-// Mock admin user for development
-const mockAdmin = {
-  name: 'Platform Admin',
-  email: 'admin@reservepty.com',
-  role: 'super_admin' as const,
-};
+interface AdminUser {
+  id: string;
+  email: string;
+  role: 'super_admin' | 'admin' | 'support';
+  firstName?: string;
+  lastName?: string;
+}
 
 export default function AdminLayout({
   children,
@@ -47,17 +48,56 @@ export default function AdminLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   useEffect(() => {
-    // In dev mode, auto-authenticate
-    if (isDevMode()) {
-      setIsLoading(false);
-    } else {
-      // TODO: Check admin authentication
-      // For now, redirect to login if not in dev mode
-      router.push('/admin/login');
-    }
-  }, [router]);
+    const checkAdminAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          router.push('/admin/login');
+          return;
+        }
+
+        // Check if user is a platform admin
+        const { data: adminData, error } = await supabase
+          .from('platform_admins')
+          .select('*, profile:profiles(*)')
+          .eq('user_id', session.user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (error || !adminData) {
+          router.push('/admin/login');
+          return;
+        }
+
+        const profile = Array.isArray(adminData.profile) 
+          ? adminData.profile[0] 
+          : adminData.profile;
+
+        setAdminUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          role: adminData.role,
+          firstName: profile?.first_name,
+          lastName: profile?.last_name,
+        });
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Admin auth check failed:', error);
+        router.push('/admin/login');
+      }
+    };
+
+    checkAdminAuth();
+  }, [router, supabase]);
 
   if (isLoading) {
     return (
@@ -72,8 +112,33 @@ export default function AdminLayout({
     );
   }
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('adminRole');
     router.push('/admin/login');
+  };
+
+  const getAdminInitials = () => {
+    if (adminUser?.firstName && adminUser?.lastName) {
+      return `${adminUser.firstName.charAt(0)}${adminUser.lastName.charAt(0)}`.toUpperCase();
+    }
+    return adminUser?.email?.charAt(0).toUpperCase() || 'A';
+  };
+
+  const getAdminDisplayName = () => {
+    if (adminUser?.firstName && adminUser?.lastName) {
+      return `${adminUser.firstName} ${adminUser.lastName}`;
+    }
+    return adminUser?.email || 'Admin';
+  };
+
+  const getRoleLabel = () => {
+    switch (adminUser?.role) {
+      case 'super_admin': return 'Super Admin';
+      case 'admin': return 'Admin';
+      case 'support': return 'Support';
+      default: return 'Admin';
+    }
   };
 
   return (
@@ -122,8 +187,11 @@ export default function AdminLayout({
                 <Shield className="w-4 h-4 text-red-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Super Admin</p>
-                <p className="text-xs text-red-400">Full Access</p>
+                <p className="text-sm font-medium text-white">{getRoleLabel()}</p>
+                <p className="text-xs text-red-400">
+                  {adminUser?.role === 'super_admin' ? 'Full Access' : 
+                   adminUser?.role === 'admin' ? 'Admin Access' : 'View Only'}
+                </p>
               </div>
             </div>
           </div>
@@ -152,27 +220,17 @@ export default function AdminLayout({
             })}
           </nav>
 
-          {/* Dev mode indicator */}
-          {isDevMode() && (
-            <div className="p-4 border-t border-border">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <Zap className="w-4 h-4 text-amber-400" />
-                <span className="text-amber-400 text-xs font-medium">Development Mode</span>
-              </div>
-            </div>
-          )}
-
           {/* User section */}
           <div className="p-4 border-t border-border">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                <span className="text-red-400 font-semibold">A</span>
+                <span className="text-red-400 font-semibold">{getAdminInitials()}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {mockAdmin.name}
+                  {getAdminDisplayName()}
                 </p>
-                <p className="text-xs text-muted truncate">{mockAdmin.email}</p>
+                <p className="text-xs text-muted truncate">{adminUser?.email}</p>
               </div>
             </div>
             <Button

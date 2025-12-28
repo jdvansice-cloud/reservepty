@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { cn, isDevMode, ROLES } from '@/lib/utils';
+import { cn, ROLES } from '@/lib/utils';
 import {
   Plus,
   Search,
@@ -21,7 +21,6 @@ import {
   Trash2,
   X,
   Loader2,
-  Sparkles,
   CheckCircle2,
   Clock,
 } from 'lucide-react';
@@ -165,12 +164,6 @@ export default function MembersPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {isDevMode() && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-sm font-medium">Demo</span>
-            </div>
-          )}
           <Button onClick={() => setShowInviteModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Invite Member

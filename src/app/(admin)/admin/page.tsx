@@ -18,11 +18,9 @@ import {
   XCircle,
   Gift,
   Activity,
-  Zap,
   FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isDevMode } from '@/lib/utils';
 
 // Mock platform statistics
 const platformStats = {
@@ -163,12 +161,6 @@ export default function AdminDashboardPage() {
             Overview of ReservePTY platform performance
           </p>
         </div>
-        {isDevMode() && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <span className="text-amber-400 text-sm font-medium">Dev Mode</span>
-          </div>
-        )}
       </div>
 
       {/* Stats grid */}

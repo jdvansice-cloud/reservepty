@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
-import { cn, isDevMode, SECTIONS } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { cn, SECTIONS } from '@/lib/utils';
 import {
   Building2,
   CreditCard,
@@ -17,7 +18,6 @@ import {
   Upload,
   Save,
   Loader2,
-  Sparkles,
   CheckCircle2,
   Plane,
   Ship,
@@ -99,6 +99,7 @@ interface Tier {
 export default function SettingsPage() {
   const { toast } = useToast();
   const { user, profile, organization, membership, session } = useAuth();
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState('organization');
   const [isSaving, setIsSaving] = useState(false);
   
@@ -197,17 +198,17 @@ export default function SettingsPage() {
 
   // Build tabs - Settings page is admin only, Profile is now in user dropdown
   const tabs = [
-    { id: 'organization', label: 'Organization', icon: Building2 },
-    { id: 'billing', label: 'Billing', icon: CreditCard },
-    { id: 'members', label: 'Members', icon: Users },
-    { id: 'tiers', label: 'Tiers', icon: Layers },
-    { id: 'rules', label: 'Booking Rules', icon: Shield },
-    { id: 'holidays', label: 'Holidays', icon: CalendarDays },
-    { id: 'locations', label: 'Locations', icon: MapPin },
-    { id: 'ports', label: 'Marinas', icon: Anchor },
-    { id: 'approvals', label: 'Approval Config', icon: ShieldCheck },
+    { id: 'organization', label: t('settings.organization'), icon: Building2 },
+    { id: 'billing', label: t('settings.billing'), icon: CreditCard },
+    { id: 'members', label: t('settings.members'), icon: Users },
+    { id: 'tiers', label: t('settings.tiers'), icon: Layers },
+    { id: 'rules', label: t('settings.rules'), icon: Shield },
+    { id: 'holidays', label: t('settings.holidays'), icon: CalendarDays },
+    { id: 'locations', label: t('settings.locations'), icon: MapPin },
+    { id: 'ports', label: t('settings.ports'), icon: Anchor },
+    { id: 'approvals', label: t('settings.approvalsConfig'), icon: ShieldCheck },
     ...(membership?.role === 'owner' ? [
-      { id: 'smtp', label: 'Email (SMTP)', icon: Server },
+      { id: 'smtp', label: t('settings.smtp'), icon: Server },
     ] : []),
   ];
 
@@ -385,7 +386,7 @@ export default function SettingsPage() {
     if (!organization?.id || !session?.access_token) return;
     
     if (!smtpSettings.smtpHost || !smtpSettings.smtpUser || !smtpSettings.fromEmail) {
-      toast({ title: 'Error', description: 'Host, usuario y email de origen son requeridos', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Host, usuario y email de origen son requeridos' : 'Host, user and from email are required', variant: 'error' });
       return;
     }
 
@@ -432,7 +433,7 @@ export default function SettingsPage() {
       } else {
         // For new records, password is required
         if (!smtpSettings.smtpPassword) {
-          toast({ title: 'Error', description: 'Contraseña es requerida', variant: 'error' });
+          toast({ title: t('common.error'), description: language === 'es' ? 'Contraseña es requerida' : 'Password is required', variant: 'error' });
           setIsSavingSmtp(false);
           return;
         }
@@ -445,10 +446,10 @@ export default function SettingsPage() {
 
       if (!res.ok) throw new Error('Failed to save');
 
-      toast({ title: 'Éxito', description: 'Configuración SMTP guardada' });
+      toast({ title: t('common.success'), description: language === 'es' ? 'Configuración SMTP guardada' : 'SMTP settings saved' });
       setSmtpSettings(prev => ({ ...prev, smtpPassword: '' })); // Clear password field
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo guardar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo guardar' : 'Could not save', variant: 'error' });
     } finally {
       setIsSavingSmtp(false);
     }
@@ -469,13 +470,13 @@ export default function SettingsPage() {
       if (smtpSettings.smtpHost && smtpSettings.smtpUser) {
         setSmtpTestResult({
           success: true,
-          message: `Email de prueba enviado a ${user.email}`,
+          message: language === 'es' ? `Email de prueba enviado a ${user.email}` : `Test email sent to ${user.email}`,
         });
-        toast({ title: 'Éxito', description: 'Conexión SMTP verificada' });
+        toast({ title: t('common.success'), description: language === 'es' ? 'Conexión SMTP verificada' : 'SMTP connection verified' });
       } else {
         setSmtpTestResult({
           success: false,
-          message: 'Configuración incompleta',
+          message: language === 'es' ? 'Configuración incompleta' : 'Incomplete configuration',
         });
       }
     } catch (error) {
@@ -598,19 +599,19 @@ export default function SettingsPage() {
         await fetch(`${baseUrl}/rest/v1/organization_holidays`, { method: 'POST', headers, body: JSON.stringify(data) });
       }
 
-      toast({ title: 'Éxito', description: editingHoliday ? 'Feriado actualizado' : 'Feriado creado' });
+      toast({ title: t('common.success'), description: editingHoliday ? (language === 'es' ? 'Feriado actualizado' : 'Holiday updated') : (language === 'es' ? 'Feriado creado' : 'Holiday created') });
       setShowHolidayModal(false);
       setEditingHoliday(null);
       setHolidayForm({ name: '', description: '', month: '', day: '', isVariable: false, variableRule: '', category: 'national' });
       fetchHolidays();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo guardar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo guardar' : 'Could not save', variant: 'error' });
     }
   };
 
   // Delete Holiday
   const handleDeleteHoliday = async (id: string, name: string) => {
-    if (!confirm(`¿Eliminar "${name}"?`)) return;
+    if (!confirm(language === 'es' ? `¿Eliminar "${name}"?` : `Delete "${name}"?`)) return;
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -618,10 +619,10 @@ export default function SettingsPage() {
         method: 'DELETE',
         headers: { 'apikey': apiKey!, 'Authorization': `Bearer ${session!.access_token}` },
       });
-      toast({ title: 'Eliminado' });
+      toast({ title: language === 'es' ? 'Eliminado' : 'Deleted' });
       fetchHolidays();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo eliminar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo eliminar' : 'Could not delete', variant: 'error' });
     }
   };
 
@@ -651,19 +652,19 @@ export default function SettingsPage() {
         await fetch(`${baseUrl}/rest/v1/airports`, { method: 'POST', headers, body: JSON.stringify(data) });
       }
 
-      toast({ title: 'Éxito', description: editingLocation ? 'Ubicación actualizada' : 'Ubicación creada' });
+      toast({ title: t('common.success'), description: editingLocation ? (language === 'es' ? 'Ubicación actualizada' : 'Location updated') : (language === 'es' ? 'Ubicación creada' : 'Location created') });
       setShowLocationModal(false);
       setEditingLocation(null);
       setLocationForm({ icaoCode: '', iataCode: '', name: '', city: '', country: 'Panama', latitude: '', longitude: '', type: 'airport' });
       fetchLocations();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo guardar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo guardar' : 'Could not save', variant: 'error' });
     }
   };
 
   // Delete Location
   const handleDeleteLocation = async (id: string, name: string) => {
-    if (!confirm(`¿Eliminar "${name}"?`)) return;
+    if (!confirm(language === 'es' ? `¿Eliminar "${name}"?` : `Delete "${name}"?`)) return;
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -671,10 +672,10 @@ export default function SettingsPage() {
         method: 'DELETE',
         headers: { 'apikey': apiKey!, 'Authorization': `Bearer ${session!.access_token}` },
       });
-      toast({ title: 'Eliminado' });
+      toast({ title: language === 'es' ? 'Eliminado' : 'Deleted' });
       fetchLocations();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo eliminar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo eliminar' : 'Could not delete', variant: 'error' });
     }
   };
 
@@ -702,19 +703,19 @@ export default function SettingsPage() {
         await fetch(`${baseUrl}/rest/v1/ports`, { method: 'POST', headers, body: JSON.stringify(data) });
       }
 
-      toast({ title: 'Éxito', description: editingPort ? 'Marina actualizada' : 'Marina creada' });
+      toast({ title: t('common.success'), description: editingPort ? (language === 'es' ? 'Marina actualizada' : 'Marina updated') : (language === 'es' ? 'Marina creada' : 'Marina created') });
       setShowPortModal(false);
       setEditingPort(null);
       setPortForm({ code: '', name: '', city: '', country: 'Panama', latitude: '', longitude: '' });
       fetchPorts();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo guardar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo guardar' : 'Could not save', variant: 'error' });
     }
   };
 
   // Delete Port
   const handleDeletePort = async (id: string, name: string) => {
-    if (!confirm(`¿Eliminar "${name}"?`)) return;
+    if (!confirm(language === 'es' ? `¿Eliminar "${name}"?` : `Delete "${name}"?`)) return;
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -722,17 +723,17 @@ export default function SettingsPage() {
         method: 'DELETE',
         headers: { 'apikey': apiKey!, 'Authorization': `Bearer ${session!.access_token}` },
       });
-      toast({ title: 'Eliminado' });
+      toast({ title: language === 'es' ? 'Eliminado' : 'Deleted' });
       fetchPorts();
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo eliminar', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo eliminar' : 'Could not delete', variant: 'error' });
     }
   };
 
   const handleInvite = async () => {
     if (!organization?.id || !session?.access_token || !user?.id) return;
     if (!inviteForm.email) {
-      toast({ title: 'Error', description: 'Email is required', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Email es requerido' : 'Email is required', variant: 'error' });
       return;
     }
 
@@ -762,11 +763,11 @@ export default function SettingsPage() {
 
       if (!response.ok) throw new Error('Failed to send invitation');
 
-      toast({ title: 'Invitation sent', description: `Invitation sent to ${inviteForm.email}` });
+      toast({ title: language === 'es' ? 'Invitación enviada' : 'Invitation sent', description: language === 'es' ? `Invitación enviada a ${inviteForm.email}` : `Invitation sent to ${inviteForm.email}` });
       setShowInviteModal(false);
       setInviteForm({ email: '', role: 'member', tierId: '' });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     } finally {
       setIsInviting(false);
     }
@@ -774,7 +775,7 @@ export default function SettingsPage() {
 
   const handleRemoveMember = async (memberId: string, memberEmail: string) => {
     if (!session?.access_token) return;
-    if (!confirm(`Remove ${memberEmail} from the organization?`)) return;
+    if (!confirm(language === 'es' ? `¿Eliminar a ${memberEmail} de la organización?` : `Remove ${memberEmail} from the organization?`)) return;
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -794,9 +795,9 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error('Failed to remove member');
 
       setMembers(members.filter(m => m.id !== memberId));
-      toast({ title: 'Member removed', description: `${memberEmail} has been removed` });
+      toast({ title: language === 'es' ? 'Miembro eliminado' : 'Member removed', description: language === 'es' ? `${memberEmail} ha sido eliminado` : `${memberEmail} has been removed` });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     }
   };
 
@@ -834,7 +835,7 @@ export default function SettingsPage() {
   const handleSaveTier = async () => {
     if (!organization?.id || !session?.access_token) return;
     if (!tierForm.name) {
-      toast({ title: 'Error', description: 'Tier name is required', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Nombre del nivel es requerido' : 'Tier name is required', variant: 'error' });
       return;
     }
 
@@ -923,11 +924,11 @@ export default function SettingsPage() {
         }
       );
 
-      toast({ title: editingTier ? 'Tier updated' : 'Tier created', description: `${tierForm.name} has been saved` });
+      toast({ title: editingTier ? (language === 'es' ? 'Nivel actualizado' : 'Tier updated') : (language === 'es' ? 'Nivel creado' : 'Tier created'), description: language === 'es' ? `${tierForm.name} ha sido guardado` : `${tierForm.name} has been saved` });
       setShowTierModal(false);
       fetchTiers();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -935,7 +936,7 @@ export default function SettingsPage() {
 
   const handleDeleteTier = async (tier: Tier) => {
     if (!session?.access_token) return;
-    if (!confirm(`Delete tier "${tier.name}"? Members in this tier will need to be reassigned.`)) return;
+    if (!confirm(language === 'es' ? `¿Eliminar nivel "${tier.name}"? Los miembros en este nivel necesitarán ser reasignados.` : `Delete tier "${tier.name}"? Members in this tier will need to be reassigned.`)) return;
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -953,9 +954,9 @@ export default function SettingsPage() {
       );
 
       setTiers(tiers.filter(t => t.id !== tier.id));
-      toast({ title: 'Tier deleted', description: `${tier.name} has been deleted` });
+      toast({ title: language === 'es' ? 'Nivel eliminado' : 'Tier deleted', description: language === 'es' ? `${tier.name} ha sido eliminado` : `${tier.name} has been deleted` });
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     }
   };
 
@@ -963,7 +964,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsSaving(false);
-    toast({ title: 'Saved', description: 'Organization settings updated' });
+    toast({ title: t('common.success'), description: language === 'es' ? 'Configuración de organización actualizada' : 'Organization settings updated' });
   };
 
   // Mock billing data
@@ -983,15 +984,9 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Settings</h1>
-          <p className="text-muted mt-1">Manage your organization and account settings</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">{t('settings.title')}</h1>
+          <p className="text-muted mt-1">{language === 'es' ? 'Administra tu organización y configuración' : 'Manage your organization and account settings'}</p>
         </div>
-        {isDevMode() && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-amber-400 text-sm font-medium">Development Mode</span>
-          </div>
-        )}
       </div>
 
       {/* Tabs */}
@@ -2151,14 +2146,14 @@ export default function SettingsPage() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowInviteModal(false)} />
           <Card className="relative max-w-md w-full animate-fade-up">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">Invite Member</CardTitle>
+              <CardTitle className="text-xl font-display">{language === 'es' ? 'Invitar Miembro' : 'Invite Member'}</CardTitle>
               <button onClick={() => setShowInviteModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Email Address</Label>
+                <Label>{language === 'es' ? 'Correo Electrónico' : 'Email Address'}</Label>
                 <Input
                   type="email"
                   placeholder="colleague@example.com"
@@ -2167,27 +2162,27 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <Label>Role</Label>
+                <Label>{language === 'es' ? 'Rol' : 'Role'}</Label>
                 <select
                   value={inviteForm.role}
                   onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
                   className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
                 >
-                  <option value="member">Member</option>
-                  <option value="viewer">Viewer</option>
-                  <option value="manager">Manager</option>
-                  <option value="admin">Admin</option>
+                  <option value="member">{t('members.role.member')}</option>
+                  <option value="viewer">{t('members.role.viewer')}</option>
+                  <option value="manager">{t('members.role.manager')}</option>
+                  <option value="admin">{t('members.role.admin')}</option>
                 </select>
               </div>
               {tiers.length > 0 && (
                 <div>
-                  <Label>Tier (Optional)</Label>
+                  <Label>{language === 'es' ? 'Nivel (Opcional)' : 'Tier (Optional)'}</Label>
                   <select
                     value={inviteForm.tierId}
                     onChange={(e) => setInviteForm({ ...inviteForm, tierId: e.target.value })}
                     className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
                   >
-                    <option value="">No tier</option>
+                    <option value="">{language === 'es' ? 'Sin nivel' : 'No tier'}</option>
                     {tiers.map((tier) => (
                       <option key={tier.id} value={tier.id}>{tier.name}</option>
                     ))}
@@ -2196,11 +2191,11 @@ export default function SettingsPage() {
               )}
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowInviteModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button className="flex-1" onClick={handleInvite} disabled={isInviting || !inviteForm.email}>
                   {isInviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                  Send Invite
+                  {language === 'es' ? 'Enviar Invitación' : 'Send Invite'}
                 </Button>
               </div>
             </CardContent>
@@ -2214,7 +2209,7 @@ export default function SettingsPage() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowTierModal(false)} />
           <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">{editingTier ? 'Edit Tier' : 'Add Tier'}</CardTitle>
+              <CardTitle className="text-xl font-display">{editingTier ? (language === 'es' ? 'Editar Nivel' : 'Edit Tier') : (language === 'es' ? 'Agregar Nivel' : 'Add Tier')}</CardTitle>
               <button onClick={() => setShowTierModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -2222,15 +2217,15 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Tier Name *</Label>
+                  <Label>{language === 'es' ? 'Nombre del Nivel *' : 'Tier Name *'}</Label>
                   <Input
-                    placeholder="Principals"
+                    placeholder={language === 'es' ? 'Principales' : 'Principals'}
                     value={tierForm.name}
                     onChange={(e) => setTierForm({ ...tierForm, name: e.target.value })}
                   />
                 </div>
                 <div>
-                  <Label>Priority (1 = highest)</Label>
+                  <Label>{language === 'es' ? 'Prioridad (1 = mayor)' : 'Priority (1 = highest)'}</Label>
                   <Input
                     type="number"
                     min="1"
@@ -2241,7 +2236,7 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <Label>Color</Label>
+                <Label>{language === 'es' ? 'Color' : 'Color'}</Label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
@@ -2258,28 +2253,28 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <Label>Description</Label>
+                <Label>{t('common.description')}</Label>
                 <Input
-                  placeholder="Brief description of this tier"
+                  placeholder={language === 'es' ? 'Breve descripción de este nivel' : 'Brief description of this tier'}
                   value={tierForm.description}
                   onChange={(e) => setTierForm({ ...tierForm, description: e.target.value })}
                 />
               </div>
 
               <div className="pt-4 border-t border-border">
-                <h4 className="font-medium text-white mb-3">Booking Rules</h4>
+                <h4 className="font-medium text-white mb-3">{language === 'es' ? 'Reglas de Reserva' : 'Booking Rules'}</h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Max Days/Month</Label>
+                    <Label>{language === 'es' ? 'Máx. Días/Mes' : 'Max Days/Month'}</Label>
                     <Input
                       type="number"
-                      placeholder="Unlimited"
+                      placeholder={language === 'es' ? 'Ilimitado' : 'Unlimited'}
                       value={tierForm.maxDaysPerMonth}
                       onChange={(e) => setTierForm({ ...tierForm, maxDaysPerMonth: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label>Min Lead Time (hours)</Label>
+                    <Label>{language === 'es' ? 'Tiempo Mín. Anticipación (horas)' : 'Min Lead Time (hours)'}</Label>
                     <Input
                       type="number"
                       value={tierForm.minLeadTimeHours}
@@ -2295,7 +2290,7 @@ export default function SettingsPage() {
                       onChange={(e) => setTierForm({ ...tierForm, requiresApproval: e.target.checked })}
                       className="w-4 h-4 rounded border-border bg-surface text-gold-500"
                     />
-                    <span className="text-sm text-white">Requires approval</span>
+                    <span className="text-sm text-white">{language === 'es' ? 'Requiere aprobación' : 'Requires approval'}</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
@@ -2304,18 +2299,18 @@ export default function SettingsPage() {
                       onChange={(e) => setTierForm({ ...tierForm, canOverride: e.target.checked })}
                       className="w-4 h-4 rounded border-border bg-surface text-gold-500"
                     />
-                    <span className="text-sm text-white">Can override lower tiers</span>
+                    <span className="text-sm text-white">{language === 'es' ? 'Puede anular niveles inferiores' : 'Can override lower tiers'}</span>
                   </label>
                 </div>
               </div>
 
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowTierModal(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button className="flex-1" onClick={handleSaveTier} disabled={isSaving || !tierForm.name}>
                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  {editingTier ? 'Update' : 'Create'} Tier
+                  {editingTier ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')} {language === 'es' ? 'Nivel' : 'Tier'}
                 </Button>
               </div>
             </CardContent>
@@ -2329,39 +2324,39 @@ export default function SettingsPage() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowHolidayModal(false)} />
           <Card className="relative max-w-md w-full animate-fade-up">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">{editingHoliday ? 'Editar Feriado' : 'Agregar Feriado'}</CardTitle>
+              <CardTitle className="text-xl font-display">{editingHoliday ? (language === 'es' ? 'Editar Feriado' : 'Edit Holiday') : (language === 'es' ? 'Agregar Feriado' : 'Add Holiday')}</CardTitle>
               <button onClick={() => setShowHolidayModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Nombre *</Label>
+                <Label>{t('common.name')} *</Label>
                 <Input
                   value={holidayForm.name}
                   onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
-                  placeholder="Ej: Navidad"
+                  placeholder={language === 'es' ? 'Ej: Navidad' : 'e.g., Christmas'}
                 />
               </div>
               <div>
-                <Label>Descripción</Label>
+                <Label>{t('common.description')}</Label>
                 <Input
                   value={holidayForm.description}
                   onChange={(e) => setHolidayForm({ ...holidayForm, description: e.target.value })}
-                  placeholder="Descripción opcional"
+                  placeholder={language === 'es' ? 'Descripción opcional' : 'Optional description'}
                 />
               </div>
               <div>
-                <Label>Categoría</Label>
+                <Label>{language === 'es' ? 'Categoría' : 'Category'}</Label>
                 <select
                   value={holidayForm.category}
                   onChange={(e) => setHolidayForm({ ...holidayForm, category: e.target.value })}
                   className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
                 >
-                  <option value="national">Nacional</option>
-                  <option value="religious">Religioso</option>
-                  <option value="company">Empresa</option>
-                  <option value="custom">Personalizado</option>
+                  <option value="national">{t('holidays.category.national')}</option>
+                  <option value="religious">{t('holidays.category.religious')}</option>
+                  <option value="company">{t('holidays.category.company')}</option>
+                  <option value="custom">{t('holidays.category.custom')}</option>
                 </select>
               </div>
               <div>
@@ -2372,26 +2367,29 @@ export default function SettingsPage() {
                     onChange={(e) => setHolidayForm({ ...holidayForm, isVariable: e.target.checked })}
                     className="w-4 h-4 rounded border-border bg-surface text-gold-500"
                   />
-                  <span className="text-sm text-white">Fecha variable (ej: Semana Santa)</span>
+                  <span className="text-sm text-white">{language === 'es' ? 'Fecha variable (ej: Semana Santa)' : 'Variable date (e.g., Easter)'}</span>
                 </label>
               </div>
               {!holidayForm.isVariable ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Mes *</Label>
+                    <Label>{language === 'es' ? 'Mes' : 'Month'} *</Label>
                     <select
                       value={holidayForm.month}
                       onChange={(e) => setHolidayForm({ ...holidayForm, month: e.target.value })}
                       className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
                     >
-                      <option value="">Seleccionar</option>
-                      {['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => (
+                      <option value="">{language === 'es' ? 'Seleccionar' : 'Select'}</option>
+                      {(language === 'es' 
+                        ? ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+                        : ['January','February','March','April','May','June','July','August','September','October','November','December']
+                      ).map((m, i) => (
                         <option key={i} value={i + 1}>{m}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <Label>Día *</Label>
+                    <Label>{language === 'es' ? 'Día' : 'Day'} *</Label>
                     <Input
                       type="number"
                       min="1"
@@ -2404,22 +2402,22 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div>
-                  <Label>Regla Variable</Label>
+                  <Label>{language === 'es' ? 'Regla Variable' : 'Variable Rule'}</Label>
                   <Input
                     value={holidayForm.variableRule}
                     onChange={(e) => setHolidayForm({ ...holidayForm, variableRule: e.target.value })}
-                    placeholder="Ej: easter-2 (2 días antes de Pascua)"
+                    placeholder={language === 'es' ? 'Ej: easter-2 (2 días antes de Pascua)' : 'e.g., easter-2 (2 days before Easter)'}
                   />
-                  <p className="text-xs text-muted mt-1">Ejemplos: easter, easter-2, carnival</p>
+                  <p className="text-xs text-muted mt-1">{language === 'es' ? 'Ejemplos: easter, easter-2, carnival' : 'Examples: easter, easter-2, carnival'}</p>
                 </div>
               )}
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowHolidayModal(false)}>
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
                 <Button className="flex-1" onClick={handleSaveHoliday} disabled={!holidayForm.name || (!holidayForm.isVariable && (!holidayForm.month || !holidayForm.day))}>
                   <Save className="w-4 h-4 mr-2" />
-                  {editingHoliday ? 'Actualizar' : 'Crear'}
+                  {editingHoliday ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')}
                 </Button>
               </div>
             </CardContent>
@@ -2433,7 +2431,7 @@ export default function SettingsPage() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowLocationModal(false)} />
           <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">{editingLocation ? 'Editar Ubicación' : 'Agregar Ubicación'}</CardTitle>
+              <CardTitle className="text-xl font-display">{editingLocation ? (language === 'es' ? 'Editar Ubicación' : 'Edit Location') : (language === 'es' ? 'Agregar Ubicación' : 'Add Location')}</CardTitle>
               <button onClick={() => setShowLocationModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -2441,7 +2439,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Código ICAO *</Label>
+                  <Label>{language === 'es' ? 'Código ICAO *' : 'ICAO Code *'}</Label>
                   <Input
                     value={locationForm.icaoCode}
                     onChange={(e) => setLocationForm({ ...locationForm, icaoCode: e.target.value.toUpperCase() })}
@@ -2450,7 +2448,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Código IATA</Label>
+                  <Label>{language === 'es' ? 'Código IATA' : 'IATA Code'}</Label>
                   <Input
                     value={locationForm.iataCode}
                     onChange={(e) => setLocationForm({ ...locationForm, iataCode: e.target.value.toUpperCase() })}
@@ -2460,7 +2458,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div>
-                <Label>Nombre *</Label>
+                <Label>{t('common.name')} *</Label>
                 <Input
                   value={locationForm.name}
                   onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
@@ -2469,36 +2467,36 @@ export default function SettingsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Ciudad</Label>
+                  <Label>{language === 'es' ? 'Ciudad' : 'City'}</Label>
                   <Input
                     value={locationForm.city}
                     onChange={(e) => setLocationForm({ ...locationForm, city: e.target.value })}
-                    placeholder="Panama City"
+                    placeholder={language === 'es' ? 'Ciudad de Panamá' : 'Panama City'}
                   />
                 </div>
                 <div>
-                  <Label>País *</Label>
+                  <Label>{language === 'es' ? 'País *' : 'Country *'}</Label>
                   <Input
                     value={locationForm.country}
                     onChange={(e) => setLocationForm({ ...locationForm, country: e.target.value })}
-                    placeholder="Panama"
+                    placeholder={language === 'es' ? 'Panamá' : 'Panama'}
                   />
                 </div>
               </div>
               <div>
-                <Label>Tipo</Label>
+                <Label>{language === 'es' ? 'Tipo' : 'Type'}</Label>
                 <select
                   value={locationForm.type}
                   onChange={(e) => setLocationForm({ ...locationForm, type: e.target.value })}
                   className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
                 >
-                  <option value="airport">Aeropuerto</option>
-                  <option value="helipad">Helipuerto</option>
+                  <option value="airport">{t('locations.type.airport')}</option>
+                  <option value="helipad">{t('locations.type.helipad')}</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Latitud</Label>
+                  <Label>{language === 'es' ? 'Latitud' : 'Latitude'}</Label>
                   <Input
                     type="number"
                     step="any"
@@ -2508,7 +2506,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Longitud</Label>
+                  <Label>{language === 'es' ? 'Longitud' : 'Longitude'}</Label>
                   <Input
                     type="number"
                     step="any"
@@ -2520,11 +2518,11 @@ export default function SettingsPage() {
               </div>
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowLocationModal(false)}>
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
                 <Button className="flex-1" onClick={handleSaveLocation} disabled={!locationForm.icaoCode || !locationForm.name}>
                   <Save className="w-4 h-4 mr-2" />
-                  {editingLocation ? 'Actualizar' : 'Crear'}
+                  {editingLocation ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')}
                 </Button>
               </div>
             </CardContent>
@@ -2538,14 +2536,14 @@ export default function SettingsPage() {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowPortModal(false)} />
           <Card className="relative max-w-lg w-full animate-fade-up">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">{editingPort ? 'Editar Marina' : 'Agregar Marina'}</CardTitle>
+              <CardTitle className="text-xl font-display">{editingPort ? (language === 'es' ? 'Editar Marina' : 'Edit Marina') : (language === 'es' ? 'Agregar Marina' : 'Add Marina')}</CardTitle>
               <button onClick={() => setShowPortModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>Código</Label>
+                <Label>{language === 'es' ? 'Código' : 'Code'}</Label>
                 <Input
                   value={portForm.code}
                   onChange={(e) => setPortForm({ ...portForm, code: e.target.value.toUpperCase() })}
@@ -2553,7 +2551,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <Label>Nombre *</Label>
+                <Label>{t('common.name')} *</Label>
                 <Input
                   value={portForm.name}
                   onChange={(e) => setPortForm({ ...portForm, name: e.target.value })}
@@ -2562,25 +2560,25 @@ export default function SettingsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Ciudad</Label>
+                  <Label>{language === 'es' ? 'Ciudad' : 'City'}</Label>
                   <Input
                     value={portForm.city}
                     onChange={(e) => setPortForm({ ...portForm, city: e.target.value })}
-                    placeholder="Panama City"
+                    placeholder={language === 'es' ? 'Ciudad de Panamá' : 'Panama City'}
                   />
                 </div>
                 <div>
-                  <Label>País *</Label>
+                  <Label>{language === 'es' ? 'País *' : 'Country *'}</Label>
                   <Input
                     value={portForm.country}
                     onChange={(e) => setPortForm({ ...portForm, country: e.target.value })}
-                    placeholder="Panama"
+                    placeholder={language === 'es' ? 'Panamá' : 'Panama'}
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Latitud</Label>
+                  <Label>{language === 'es' ? 'Latitud' : 'Latitude'}</Label>
                   <Input
                     type="number"
                     step="any"
@@ -2590,7 +2588,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Longitud</Label>
+                  <Label>{language === 'es' ? 'Longitud' : 'Longitude'}</Label>
                   <Input
                     type="number"
                     step="any"
@@ -2602,11 +2600,11 @@ export default function SettingsPage() {
               </div>
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" className="flex-1" onClick={() => setShowPortModal(false)}>
-                  Cancelar
+                  {t('common.cancel')}
                 </Button>
                 <Button className="flex-1" onClick={handleSavePort} disabled={!portForm.name}>
                   <Save className="w-4 h-4 mr-2" />
-                  {editingPort ? 'Actualizar' : 'Crear'}
+                  {editingPort ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')}
                 </Button>
               </div>
             </CardContent>

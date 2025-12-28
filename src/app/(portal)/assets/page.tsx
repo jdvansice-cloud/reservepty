@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn, SECTIONS } from '@/lib/utils';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   Plus,
   Search,
@@ -55,6 +56,7 @@ export default function AssetsPage() {
   const searchParams = useSearchParams();
   const initialSection = searchParams.get('section') || 'all';
   const { organization, session } = useAuth();
+  const { t, language } = useLanguage();
   
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState(initialSection);
@@ -147,13 +149,13 @@ export default function AssetsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Assets</h1>
-          <p className="text-muted mt-1">Manage your fleet and properties</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">{t('assets.title')}</h1>
+          <p className="text-muted mt-1">{t('assets.subtitle')}</p>
         </div>
         <Link href="/assets/new">
           <Button>
             <Plus className="w-4 h-4 mr-2" />
-            Add Asset
+            {t('assets.addAsset')}
           </Button>
         </Link>
       </div>
@@ -175,7 +177,7 @@ export default function AssetsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
           <Input
             type="text"
-            placeholder="Search assets..."
+            placeholder={language === 'es' ? 'Buscar activos...' : 'Search assets...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -193,7 +195,7 @@ export default function AssetsPage() {
                 : 'text-muted hover:text-white hover:bg-white/5'
             )}
           >
-            All
+            {t('common.all')}
           </button>
           {Object.entries(SECTIONS).map(([key, section]) => {
             const Icon = SECTION_ICONS[key];
@@ -209,7 +211,7 @@ export default function AssetsPage() {
                 )}
               >
                 <Icon className="w-4 h-4" />
-                {section.label}
+                {t(`assets.section.${key}`)}
               </button>
             );
           })}
@@ -224,22 +226,22 @@ export default function AssetsPage() {
               <Filter className="w-8 h-8 text-muted" />
             </div>
             <h3 className="text-lg font-display font-semibold text-white mb-2">
-              No assets found
+              {t('assets.noAssets')}
             </h3>
             <p className="text-muted max-w-md mx-auto">
               {search
-                ? `No assets match "${search}". Try a different search term.`
+                ? (language === 'es' ? `No hay activos que coincidan con "${search}".` : `No assets match "${search}". Try a different search term.`)
                 : activeSection !== 'all'
-                ? `No ${SECTIONS[activeSection as keyof typeof SECTIONS]?.label.toLowerCase()} added yet.`
-                : 'Get started by adding your first asset.'}
+                ? (language === 'es' ? `No hay ${t(`assets.section.${activeSection}`).toLowerCase()} agregados aún.` : `No ${t(`assets.section.${activeSection}`).toLowerCase()} added yet.`)
+                : (language === 'es' ? 'Comienza agregando tu primer activo.' : 'Get started by adding your first asset.')}
             </p>
             {!search && (
               <Link href={activeSection !== 'all' ? `/assets/new?section=${activeSection}` : '/assets/new'}>
                 <Button className="mt-6">
                   <Plus className="w-4 h-4 mr-2" />
                   {activeSection !== 'all' 
-                    ? `Add ${SECTIONS[activeSection as keyof typeof SECTIONS]?.label.slice(0, -1)}`
-                    : 'Add Your First Asset'}
+                    ? (language === 'es' ? `Agregar ${t(`assets.section.${activeSection}`)}` : `Add ${t(`assets.section.${activeSection}`)}`)
+                    : (language === 'es' ? 'Agregar tu Primer Activo' : 'Add Your First Asset')}
                 </Button>
               </Link>
             )}

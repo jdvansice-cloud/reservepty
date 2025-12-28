@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
 import { PlaneBookingData } from '@/components/calendar/PlaneBookingModal';
 import PlaneBookingModal from '@/components/calendar/PlaneBookingModal';
@@ -109,6 +110,7 @@ export default function CalendarPage() {
   const preselectedAsset = searchParams.get('asset');
   const { toast } = useToast();
   const { organization, session, user, profile } = useAuth();
+  const { t, language } = useLanguage();
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
@@ -433,10 +435,10 @@ export default function CalendarPage() {
           : r
       ));
 
-      toast({ title: 'Booking approved', description: 'The booking has been approved.' });
+      toast({ title: language === 'es' ? 'Reserva aprobada' : 'Booking approved', description: language === 'es' ? 'La reserva ha sido aprobada.' : 'The booking has been approved.' });
       setShowDetailModal(false);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -445,7 +447,7 @@ export default function CalendarPage() {
   const handleRejectBooking = async () => {
     if (!selectedReservation || !session?.access_token) return;
     
-    const reason = prompt('Reason for rejection (optional):');
+    const reason = prompt(language === 'es' ? 'Razón del rechazo (opcional):' : 'Reason for rejection (optional):');
     
     setIsProcessing(true);
     try {
@@ -484,10 +486,10 @@ export default function CalendarPage() {
           : r
       ));
 
-      toast({ title: 'Booking rejected', description: 'The booking has been rejected.' });
+      toast({ title: language === 'es' ? 'Reserva rechazada' : 'Booking rejected', description: language === 'es' ? 'La reserva ha sido rechazada.' : 'The booking has been rejected.' });
       setShowDetailModal(false);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -496,7 +498,7 @@ export default function CalendarPage() {
   const handleCancelBooking = async () => {
     if (!selectedReservation || !session?.access_token) return;
     
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
+    if (!confirm(language === 'es' ? '¿Estás seguro de que deseas cancelar esta reserva?' : 'Are you sure you want to cancel this booking?')) return;
     
     setIsProcessing(true);
     try {
@@ -535,10 +537,10 @@ export default function CalendarPage() {
           : r
       ));
 
-      toast({ title: 'Booking canceled', description: 'The booking has been canceled.' });
+      toast({ title: language === 'es' ? 'Reserva cancelada' : 'Booking canceled', description: language === 'es' ? 'La reserva ha sido cancelada.' : 'The booking has been canceled.' });
       setShowDetailModal(false);
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'error' });
+      toast({ title: t('common.error'), description: error.message, variant: 'error' });
     } finally {
       setIsProcessing(false);
     }
@@ -547,7 +549,7 @@ export default function CalendarPage() {
   // Handle plane booking submission
   const handlePlaneBookingSubmit = async (data: PlaneBookingData) => {
     if (!organization?.id || !session?.access_token || !user?.id) {
-      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Debes iniciar sesión.' : 'You must be logged in.', variant: 'error' });
       return;
     }
 
@@ -615,8 +617,8 @@ export default function CalendarPage() {
       setReservations(prev => [...prev, fullReservation]);
 
       toast({
-        title: 'Flight booking created',
-        description: 'Your flight request has been submitted for approval.',
+        title: language === 'es' ? 'Reserva de vuelo creada' : 'Flight booking created',
+        description: language === 'es' ? 'Tu solicitud de vuelo ha sido enviada para aprobación.' : 'Your flight request has been submitted for approval.',
       });
 
       setShowPlaneBookingModal(false);
@@ -624,8 +626,8 @@ export default function CalendarPage() {
     } catch (error: any) {
       console.error('Plane booking error:', error);
       toast({
-        title: 'Booking failed',
-        description: error.message || 'An error occurred.',
+        title: language === 'es' ? 'Reserva fallida' : 'Booking failed',
+        description: error.message || (language === 'es' ? 'Ocurrió un error.' : 'An error occurred.'),
         variant: 'error',
       });
     } finally {
@@ -635,7 +637,7 @@ export default function CalendarPage() {
 
   const handleHelicopterBookingSubmit = async (data: HelicopterBookingData) => {
     if (!organization?.id || !session?.access_token || !user?.id) {
-      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Debes iniciar sesión.' : 'You must be logged in.', variant: 'error' });
       return;
     }
 
@@ -703,8 +705,8 @@ export default function CalendarPage() {
       setReservations(prev => [...prev, fullReservation]);
 
       toast({
-        title: 'Helicopter booking created',
-        description: 'Your flight request has been submitted for approval.',
+        title: language === 'es' ? 'Reserva de helicóptero creada' : 'Helicopter booking created',
+        description: language === 'es' ? 'Tu solicitud de vuelo ha sido enviada para aprobación.' : 'Your flight request has been submitted for approval.',
       });
 
       setShowHelicopterBookingModal(false);
@@ -712,8 +714,8 @@ export default function CalendarPage() {
     } catch (error: any) {
       console.error('Helicopter booking error:', error);
       toast({
-        title: 'Booking failed',
-        description: error.message || 'An error occurred.',
+        title: language === 'es' ? 'Reserva fallida' : 'Booking failed',
+        description: error.message || (language === 'es' ? 'Ocurrió un error.' : 'An error occurred.'),
         variant: 'error',
       });
     } finally {
@@ -799,16 +801,16 @@ export default function CalendarPage() {
       } : null);
 
       toast({
-        title: 'Itinerary updated',
-        description: 'The flight itinerary has been updated successfully.',
+        title: language === 'es' ? 'Itinerario actualizado' : 'Itinerary updated',
+        description: language === 'es' ? 'El itinerario de vuelo ha sido actualizado exitosamente.' : 'The flight itinerary has been updated successfully.',
       });
 
       setIsEditingItinerary(false);
     } catch (error: any) {
       console.error('Save itinerary error:', error);
       toast({
-        title: 'Update failed',
-        description: error.message || 'Failed to update itinerary.',
+        title: language === 'es' ? 'Actualización fallida' : 'Update failed',
+        description: error.message || (language === 'es' ? 'Error al actualizar itinerario.' : 'Failed to update itinerary.'),
         variant: 'error',
       });
     } finally {
@@ -829,12 +831,12 @@ export default function CalendarPage() {
 
   const handleSubmitBooking = async () => {
     if (!organization?.id || !session?.access_token || !user?.id) {
-      toast({ title: 'Error', description: 'You must be logged in.', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Debes iniciar sesión.' : 'You must be logged in.', variant: 'error' });
       return;
     }
 
     if (!bookingForm.assetId || !bookingForm.startDate) {
-      toast({ title: 'Error', description: 'Please select an asset and date.', variant: 'error' });
+      toast({ title: t('common.error'), description: language === 'es' ? 'Por favor selecciona un activo y fecha.' : 'Please select an asset and date.', variant: 'error' });
       return;
     }
 
@@ -926,8 +928,8 @@ export default function CalendarPage() {
       setReservations(prev => [...prev, fullReservation]);
 
       toast({
-        title: 'Booking created',
-        description: 'Your booking request has been submitted for approval.',
+        title: language === 'es' ? 'Reserva creada' : 'Booking created',
+        description: language === 'es' ? 'Tu solicitud de reserva ha sido enviada para aprobación.' : 'Your booking request has been submitted for approval.',
       });
 
       setShowBookingModal(false);
@@ -944,8 +946,8 @@ export default function CalendarPage() {
     } catch (error: any) {
       console.error('Booking error:', error);
       toast({
-        title: 'Booking failed',
-        description: error.message || 'An error occurred.',
+        title: language === 'es' ? 'Reserva fallida' : 'Booking failed',
+        description: error.message || (language === 'es' ? 'Ocurrió un error.' : 'An error occurred.'),
         variant: 'error',
       });
     } finally {
@@ -983,12 +985,12 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">Calendar</h1>
-          <p className="text-muted mt-1">View and manage bookings across all assets</p>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">{t('calendar.title')}</h1>
+          <p className="text-muted mt-1">{t('calendar.subtitle')}</p>
         </div>
         <Button onClick={() => setShowBookingModal(true)}>
           <Plus className="w-4 h-4 mr-2" />
-          New Booking
+          {t('calendar.newBooking')}
         </Button>
       </div>
 
@@ -1003,7 +1005,7 @@ export default function CalendarPage() {
               : 'bg-surface text-muted hover:text-white'
           )}
         >
-          All Assets
+          {language === 'es' ? 'Todos los Activos' : 'All Assets'}
         </button>
         {Object.entries(SECTIONS).map(([key, section]) => {
           const Icon = SECTION_ICONS[key];
@@ -1022,7 +1024,7 @@ export default function CalendarPage() {
               style={selectedSection === key ? { backgroundColor: section.color } : undefined}
             >
               <Icon className="w-4 h-4" />
-              {section.label}
+              {t(`assets.section.${key}`)}
             </button>
           );
         })}
@@ -1206,7 +1208,7 @@ export default function CalendarPage() {
           />
           <Card className="relative max-w-lg w-full animate-fade-up max-h-[90vh] overflow-y-auto">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-xl font-display">New Booking</CardTitle>
+              <CardTitle className="text-xl font-display">{t('calendar.newBooking')}</CardTitle>
               <button
                 onClick={() => setShowBookingModal(false)}
                 className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
@@ -1217,16 +1219,16 @@ export default function CalendarPage() {
             <CardContent className="space-y-4">
               {assets.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted mb-4">No assets available. Add an asset first.</p>
+                  <p className="text-muted mb-4">{language === 'es' ? 'No hay activos disponibles. Agrega un activo primero.' : 'No assets available. Add an asset first.'}</p>
                   <Button variant="secondary" onClick={() => setShowBookingModal(false)}>
-                    Close
+                    {language === 'es' ? 'Cerrar' : 'Close'}
                   </Button>
                 </div>
               ) : (
                 <>
                   {/* Asset Selection */}
                   <div>
-                    <Label>Select Asset *</Label>
+                    <Label>{language === 'es' ? 'Seleccionar Activo *' : 'Select Asset *'}</Label>
                     <select
                       value={bookingForm.assetId}
                       onChange={(e) => {
@@ -1249,10 +1251,10 @@ export default function CalendarPage() {
                       }}
                       className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
                     >
-                      <option value="">Choose an asset...</option>
+                      <option value="">{language === 'es' ? 'Seleccionar un activo...' : 'Choose an asset...'}</option>
                       {assets.map((asset) => (
                         <option key={asset.id} value={asset.id}>
-                          {asset.name} ({SECTIONS[asset.section as keyof typeof SECTIONS]?.label})
+                          {asset.name} ({t(`assets.section.${asset.section}`)})
                           {asset.section === 'planes' && ' ✈️'}
                           {asset.section === 'helicopters' && ' 🚁'}
                         </option>
@@ -1260,16 +1262,16 @@ export default function CalendarPage() {
                     </select>
                     {assets.some(a => ['planes', 'helicopters'].includes(a.section)) && (
                       <p className="text-xs text-muted mt-1">
-                        ✈️🚁 Aircraft have an enhanced booking flow with itinerary planning
+                        {language === 'es' ? '✈️🚁 Las aeronaves tienen un flujo de reserva mejorado con planificación de itinerario' : '✈️🚁 Aircraft have an enhanced booking flow with itinerary planning'}
                       </p>
                     )}
                   </div>
 
                   {/* Title */}
                   <div>
-                    <Label>Booking Title</Label>
+                    <Label>{language === 'es' ? 'Título de la Reserva' : 'Booking Title'}</Label>
                     <Input
-                      placeholder="e.g., Family vacation, Business trip"
+                      placeholder={language === 'es' ? 'Ej: Vacaciones familiares, Viaje de negocios' : 'e.g., Family vacation, Business trip'}
                       value={bookingForm.title}
                       onChange={(e) =>
                         setBookingForm((prev) => ({ ...prev, title: e.target.value }))
@@ -1282,10 +1284,10 @@ export default function CalendarPage() {
                     <div>
                       <Label>
                         {selectedAsset?.section === 'residences' 
-                          ? 'Arrival Date *' 
+                          ? (language === 'es' ? 'Fecha de Llegada *' : 'Arrival Date *')
                           : selectedAsset?.section === 'watercraft'
-                          ? 'Departure Date *'
-                          : 'Start Date *'}
+                          ? (language === 'es' ? 'Fecha de Salida *' : 'Departure Date *')
+                          : (language === 'es' ? 'Fecha de Inicio *' : 'Start Date *')}
                       </Label>
                       <Input
                         type="date"
@@ -1296,22 +1298,22 @@ export default function CalendarPage() {
                       />
                       {selectedAsset && selectedAsset.section === 'residences' && (
                         <p className="text-xs text-muted mt-1">
-                          Check-in: {selectedAsset.details?.checkInTime || '15:00'}
+                          {language === 'es' ? 'Check-in:' : 'Check-in:'} {selectedAsset.details?.checkInTime || '15:00'}
                         </p>
                       )}
                       {selectedAsset && selectedAsset.section === 'watercraft' && (
                         <p className="text-xs text-muted mt-1">
-                          From 12:00 AM
+                          {language === 'es' ? 'Desde las 12:00 AM' : 'From 12:00 AM'}
                         </p>
                       )}
                     </div>
                     <div>
                       <Label>
                         {selectedAsset?.section === 'residences' 
-                          ? 'Departure Date *' 
+                          ? (language === 'es' ? 'Fecha de Salida *' : 'Departure Date *')
                           : selectedAsset?.section === 'watercraft'
-                          ? 'Return Date *'
-                          : 'End Date'}
+                          ? (language === 'es' ? 'Fecha de Regreso *' : 'Return Date *')
+                          : (language === 'es' ? 'Fecha de Fin' : 'End Date')}
                       </Label>
                       <Input
                         type="date"
@@ -1328,7 +1330,7 @@ export default function CalendarPage() {
                       )}
                       {selectedAsset && selectedAsset.section === 'watercraft' && (
                         <p className="text-xs text-muted mt-1">
-                          Until 11:59 PM
+                          {language === 'es' ? 'Hasta las 11:59 PM' : 'Until 11:59 PM'}
                         </p>
                       )}
                     </div>
@@ -1340,14 +1342,16 @@ export default function CalendarPage() {
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-sm font-medium text-amber-400">Scheduling Conflict</p>
+                          <p className="text-sm font-medium text-amber-400">{language === 'es' ? 'Conflicto de Horario' : 'Scheduling Conflict'}</p>
                           <p className="text-xs text-amber-400/80 mt-1">
-                            This asset has {conflicts.length} existing booking{conflicts.length > 1 ? 's' : ''} during this time:
+                            {language === 'es' 
+                              ? `Este activo tiene ${conflicts.length} reserva${conflicts.length > 1 ? 's' : ''} existente${conflicts.length > 1 ? 's' : ''} durante este tiempo:`
+                              : `This asset has ${conflicts.length} existing booking${conflicts.length > 1 ? 's' : ''} during this time:`}
                           </p>
                           <ul className="mt-2 space-y-1">
                             {conflicts.map((c) => (
                               <li key={c.id} className="text-xs text-amber-400/70">
-                                • {formatDate(new Date(c.start_datetime))} - {c.status}
+                                • {formatDate(new Date(c.start_datetime))} - {t(`bookings.status.${c.status}`)}
                               </li>
                             ))}
                           </ul>
@@ -1360,7 +1364,7 @@ export default function CalendarPage() {
                   {selectedAsset && ['planes', 'helicopters'].includes(selectedAsset.section) && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label>Departure Time</Label>
+                        <Label>{language === 'es' ? 'Hora de Salida' : 'Departure Time'}</Label>
                         <Input
                           type="time"
                           step="900"
@@ -1369,10 +1373,10 @@ export default function CalendarPage() {
                             setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))
                           }
                         />
-                        <p className="text-xs text-muted mt-1">15-minute intervals</p>
+                        <p className="text-xs text-muted mt-1">{language === 'es' ? 'Intervalos de 15 minutos' : '15-minute intervals'}</p>
                       </div>
                       <div>
-                        <Label>Arrival Time (est.)</Label>
+                        <Label>{language === 'es' ? 'Hora de Llegada (est.)' : 'Arrival Time (est.)'}</Label>
                         <Input
                           type="time"
                           step="900"
@@ -1388,10 +1392,10 @@ export default function CalendarPage() {
                   {/* Guest Count (for residences/watercraft) */}
                   {selectedAsset && ['residences', 'watercraft'].includes(selectedAsset.section) && (
                     <div>
-                      <Label>Number of Guests</Label>
+                      <Label>{language === 'es' ? 'Número de Invitados' : 'Number of Guests'}</Label>
                       <Input
                         type="number"
-                        placeholder="e.g., 4"
+                        placeholder={language === 'es' ? 'Ej: 4' : 'e.g., 4'}
                         value={bookingForm.guestCount}
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, guestCount: e.target.value }))
@@ -1402,10 +1406,10 @@ export default function CalendarPage() {
 
                   {/* Notes */}
                   <div>
-                    <Label>Notes (optional)</Label>
+                    <Label>{language === 'es' ? 'Notas (opcional)' : 'Notes (optional)'}</Label>
                     <textarea
                       rows={3}
-                      placeholder="Add any special requests or notes..."
+                      placeholder={language === 'es' ? 'Agregar solicitudes especiales o notas...' : 'Add any special requests or notes...'}
                       value={bookingForm.notes}
                       onChange={(e) =>
                         setBookingForm((prev) => ({ ...prev, notes: e.target.value }))
@@ -1421,7 +1425,7 @@ export default function CalendarPage() {
                       className="flex-1"
                       onClick={() => setShowBookingModal(false)}
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </Button>
                     <Button
                       className="flex-1"
@@ -1437,12 +1441,12 @@ export default function CalendarPage() {
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating...
+                          {language === 'es' ? 'Creando...' : 'Creating...'}
                         </>
                       ) : conflicts.length > 0 ? (
-                        'Cannot Book - Conflict'
+                        language === 'es' ? 'No se puede Reservar - Conflicto' : 'Cannot Book - Conflict'
                       ) : (
-                        'Create Booking'
+                        language === 'es' ? 'Crear Reserva' : 'Create Booking'
                       )}
                     </Button>
                   </div>
@@ -1498,14 +1502,14 @@ export default function CalendarPage() {
             <CardContent className="space-y-4">
               {/* Status */}
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted">Status</span>
+                <span className="text-sm text-muted">{t('common.status')}</span>
                 {(() => {
                   const statusBadge = getStatusBadge(selectedReservation.status);
                   const StatusIcon = statusBadge.icon;
                   return (
                     <div className={cn('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize', statusBadge.color)}>
                       <StatusIcon className="w-3.5 h-3.5" />
-                      {selectedReservation.status}
+                      {t(`bookings.status.${selectedReservation.status}`)}
                     </div>
                   );
                 })()}
@@ -1514,9 +1518,9 @@ export default function CalendarPage() {
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-xs text-muted block mb-1">Start</span>
+                  <span className="text-xs text-muted block mb-1">{language === 'es' ? 'Inicio' : 'Start'}</span>
                   <p className="text-sm text-white">
-                    {new Date(selectedReservation.start_datetime).toLocaleDateString('en-US', {
+                    {new Date(selectedReservation.start_datetime).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
@@ -1524,16 +1528,16 @@ export default function CalendarPage() {
                     })}
                   </p>
                   <p className="text-xs text-muted">
-                    {new Date(selectedReservation.start_datetime).toLocaleTimeString('en-US', {
+                    {new Date(selectedReservation.start_datetime).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
                   </p>
                 </div>
                 <div>
-                  <span className="text-xs text-muted block mb-1">End</span>
+                  <span className="text-xs text-muted block mb-1">{language === 'es' ? 'Fin' : 'End'}</span>
                   <p className="text-sm text-white">
-                    {new Date(selectedReservation.end_datetime).toLocaleDateString('en-US', {
+                    {new Date(selectedReservation.end_datetime).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
@@ -1541,7 +1545,7 @@ export default function CalendarPage() {
                     })}
                   </p>
                   <p className="text-xs text-muted">
-                    {new Date(selectedReservation.end_datetime).toLocaleTimeString('en-US', {
+                    {new Date(selectedReservation.end_datetime).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
@@ -1568,11 +1572,13 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-white flex items-center gap-2">
                           <Plane className="w-4 h-4 text-sky-400" />
-                          Flight Itinerary
+                          {language === 'es' ? 'Itinerario de Vuelo' : 'Flight Itinerary'}
                         </span>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted capitalize">
-                            {selectedReservation.metadata.tripType === 'taken' ? 'Outbound Flight' : 'Pickup Flight'}
+                            {selectedReservation.metadata.tripType === 'taken' 
+                              ? (language === 'es' ? 'Vuelo de Salida' : 'Outbound Flight')
+                              : (language === 'es' ? 'Vuelo de Recogida' : 'Pickup Flight')}
                           </span>
                           {/* Edit button for admins - show for pending/approved bookings */}
                           {(selectedReservation.status === 'pending' || selectedReservation.status === 'approved') && (
@@ -1583,7 +1589,7 @@ export default function CalendarPage() {
                               className="h-7 px-2"
                             >
                               <Edit2 className="w-3.5 h-3.5 mr-1" />
-                              Edit
+                              {t('common.edit')}
                             </Button>
                           )}
                         </div>
@@ -1606,7 +1612,9 @@ export default function CalendarPage() {
                                 ? 'bg-sky-500/20 text-sky-400' 
                                 : 'bg-gray-500/20 text-gray-400'
                             )}>
-                              {leg.type === 'customer' ? 'Your Flight' : 'Empty Leg (Repositioning)'}
+                              {leg.type === 'customer' 
+                                ? (language === 'es' ? 'Tu Vuelo' : 'Your Flight')
+                                : (language === 'es' ? 'Vuelo Vacío (Reposición)' : 'Empty Leg (Repositioning)')}
                             </span>
                             {leg.distanceNm && (
                               <span className="text-xs text-muted">
@@ -1619,7 +1627,7 @@ export default function CalendarPage() {
                             <div className="text-center">
                               <div className="text-base font-bold text-white">{leg.departure}</div>
                               <div className="text-xs text-muted">
-                                {new Date(leg.departureTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(leg.departureTime).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             </div>
                             <div className="flex-1 flex items-center gap-2">
@@ -1630,7 +1638,7 @@ export default function CalendarPage() {
                             <div className="text-center">
                               <div className="text-base font-bold text-white">{leg.arrival}</div>
                               <div className="text-xs text-muted">
-                                {new Date(leg.arrivalTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(leg.arrivalTime).toLocaleTimeString(language === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                               </div>
                             </div>
                           </div>
@@ -1654,26 +1662,26 @@ export default function CalendarPage() {
 
               {/* Booked By */}
               <div>
-                <span className="text-xs text-muted block mb-1">Booked By</span>
+                <span className="text-xs text-muted block mb-1">{language === 'es' ? 'Reservado por' : 'Booked By'}</span>
                 <p className="text-sm text-white">
                   {selectedReservation.profile?.first_name 
                     ? `${selectedReservation.profile.first_name} ${selectedReservation.profile.last_name || ''}`
-                    : selectedReservation.profile?.email || 'Unknown'}
+                    : selectedReservation.profile?.email || (language === 'es' ? 'Desconocido' : 'Unknown')}
                 </p>
               </div>
 
               {/* Guest Count */}
               {selectedReservation.guest_count && (
                 <div>
-                  <span className="text-xs text-muted block mb-1">Guests</span>
-                  <p className="text-sm text-white">{selectedReservation.guest_count} guests</p>
+                  <span className="text-xs text-muted block mb-1">{language === 'es' ? 'Invitados' : 'Guests'}</span>
+                  <p className="text-sm text-white">{selectedReservation.guest_count} {language === 'es' ? 'invitados' : 'guests'}</p>
                 </div>
               )}
 
               {/* Notes */}
               {selectedReservation.notes && (
                 <div>
-                  <span className="text-xs text-muted block mb-1">Notes</span>
+                  <span className="text-xs text-muted block mb-1">{language === 'es' ? 'Notas' : 'Notes'}</span>
                   <p className="text-sm text-white bg-surface p-3 rounded-lg">{selectedReservation.notes}</p>
                 </div>
               )}
@@ -1688,7 +1696,7 @@ export default function CalendarPage() {
                       disabled={isProcessing}
                     >
                       {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                      Approve
+                      {t('approvals.approve')}
                     </Button>
                     <Button
                       variant="secondary"
@@ -1697,7 +1705,7 @@ export default function CalendarPage() {
                       disabled={isProcessing}
                     >
                       <X className="w-4 h-4 mr-2" />
-                      Reject
+                      {t('approvals.reject')}
                     </Button>
                   </>
                 )}
@@ -1709,12 +1717,14 @@ export default function CalendarPage() {
                     onClick={handleCancelBooking}
                     disabled={isProcessing}
                   >
-                    Cancel Booking
+                    {language === 'es' ? 'Cancelar Reserva' : 'Cancel Booking'}
                   </Button>
                 )}
                 {(selectedReservation.status === 'cancelled' || selectedReservation.status === 'rejected') && (
                   <p className="text-sm text-muted text-center w-full py-2">
-                    This booking has been {selectedReservation.status}.
+                    {language === 'es' 
+                      ? `Esta reserva ha sido ${t(`bookings.status.${selectedReservation.status}`)}.`
+                      : `This booking has been ${selectedReservation.status}.`}
                   </p>
                 )}
               </div>

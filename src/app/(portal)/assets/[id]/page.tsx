@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn, SECTIONS, formatDate, isDevMode } from '@/lib/utils';
+import { cn, SECTIONS, formatDate } from '@/lib/utils';
 import {
   ArrowLeft,
   Edit,
@@ -25,7 +25,6 @@ import {
   Anchor,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   AlertTriangle,
 } from 'lucide-react';
 
@@ -151,12 +150,6 @@ export default function AssetDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {isDevMode() && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span className="text-amber-400 text-sm font-medium">Demo</span>
-            </div>
-          )}
           <Link href={`/assets/${asset.id}/edit`}>
             <Button variant="secondary">
               <Edit className="w-4 h-4 mr-2" />

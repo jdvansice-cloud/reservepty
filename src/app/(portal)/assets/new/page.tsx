@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { cn, SECTIONS } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -116,6 +117,7 @@ export default function NewAssetPage() {
   const preSelectedSection = searchParams.get('section') as SectionType | null;
   const { toast } = useToast();
   const { organization, session } = useAuth();
+  const { language, t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // If section is pre-selected via URL, start at step 2
@@ -207,8 +209,8 @@ export default function NewAssetPage() {
 
     if (!session?.access_token || !organization?.id) {
       toast({
-        title: 'Error',
-        description: 'You must be logged in to upload photos.',
+        title: t('common.error'),
+        description: language === 'es' ? 'Debes iniciar sesión para subir fotos.' : 'You must be logged in to upload photos.',
         variant: 'error',
       });
       return;
@@ -224,8 +226,8 @@ export default function NewAssetPage() {
         // Validate file type
         if (!file.type.startsWith('image/')) {
           toast({
-            title: 'Invalid file type',
-            description: `${file.name} is not an image file.`,
+            title: language === 'es' ? 'Tipo de archivo inválido' : 'Invalid file type',
+            description: language === 'es' ? `${file.name} no es un archivo de imagen.` : `${file.name} is not an image file.`,
             variant: 'error',
           });
           continue;
@@ -234,8 +236,8 @@ export default function NewAssetPage() {
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
           toast({
-            title: 'File too large',
-            description: `${file.name} exceeds 5MB limit.`,
+            title: language === 'es' ? 'Archivo muy grande' : 'File too large',
+            description: language === 'es' ? `${file.name} excede el límite de 5MB.` : `${file.name} exceeds 5MB limit.`,
             variant: 'error',
           });
           continue;
@@ -264,8 +266,8 @@ export default function NewAssetPage() {
           const errorText = await uploadResponse.text();
           console.error('Upload failed:', errorText);
           toast({
-            title: 'Upload failed',
-            description: `Failed to upload ${file.name}. Please try again.`,
+            title: language === 'es' ? 'Error al subir' : 'Upload failed',
+            description: language === 'es' ? `Error al subir ${file.name}. Intenta de nuevo.` : `Failed to upload ${file.name}. Please try again.`,
             variant: 'error',
           });
           continue;
@@ -276,15 +278,15 @@ export default function NewAssetPage() {
         setPhotos((prev) => [...prev, publicUrl]);
 
         toast({
-          title: 'Photo uploaded',
-          description: `${file.name} uploaded successfully.`,
+          title: language === 'es' ? 'Foto subida' : 'Photo uploaded',
+          description: language === 'es' ? `${file.name} subida exitosamente.` : `${file.name} uploaded successfully.`,
         });
       }
     } catch (error: any) {
       console.error('Upload error:', error);
       toast({
-        title: 'Upload error',
-        description: error.message || 'An error occurred while uploading.',
+        title: language === 'es' ? 'Error al subir' : 'Upload error',
+        description: error.message || (language === 'es' ? 'Ocurrió un error al subir.' : 'An error occurred while uploading.'),
         variant: 'error',
       });
     } finally {
@@ -369,8 +371,8 @@ export default function NewAssetPage() {
   const handleSubmit = async () => {
     if (!organization?.id || !session?.access_token) {
       toast({
-        title: 'Error',
-        description: 'You must be logged in to create an asset.',
+        title: t('common.error'),
+        description: language === 'es' ? 'Debes iniciar sesión para crear un activo.' : 'You must be logged in to create an asset.',
         variant: 'error',
       });
       return;
@@ -436,16 +438,16 @@ export default function NewAssetPage() {
       }
 
       toast({
-        title: 'Asset created successfully',
-        description: `${formData.name} has been added to your ${SECTIONS[formData.section!]?.label.toLowerCase()}.`,
+        title: language === 'es' ? 'Activo creado exitosamente' : 'Asset created successfully',
+        description: language === 'es' ? `${formData.name} ha sido agregado a tu ${t(`assets.section.${formData.section}`).toLowerCase()}.` : `${formData.name} has been added to your ${SECTIONS[formData.section!]?.label.toLowerCase()}.`,
       });
       
       router.push('/assets');
     } catch (error: any) {
       console.error('Error creating asset:', error);
       toast({
-        title: 'Error creating asset',
-        description: error.message || 'An error occurred while creating the asset.',
+        title: language === 'es' ? 'Error al crear activo' : 'Error creating asset',
+        description: error.message || (language === 'es' ? 'Ocurrió un error al crear el activo.' : 'An error occurred while creating the asset.'),
         variant: 'error',
       });
     } finally {

@@ -272,3 +272,152 @@
   z-index: 9999;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
 }
+
+/* iOS Safe Area Support */
+@supports (padding: max(0px)) {
+  .pt-safe {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+  
+  .pb-safe {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
+  
+  .pl-safe {
+    padding-left: max(0px, env(safe-area-inset-left));
+  }
+  
+  .pr-safe {
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
+/* Mobile touch optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+  
+  /* Remove hover effects on touch devices */
+  .hover\:bg-white\/5:hover {
+    background-color: transparent;
+  }
+  
+  /* Active state feedback instead of hover */
+  .active\:bg-white\/5:active,
+  .active\:bg-white\/10:active {
+    transition: background-color 0.1s ease;
+  }
+}
+
+/* Animations */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* iOS-like momentum scrolling */
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text selection during touch interactions */
+.select-none {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* iOS-like backdrop blur */
+@supports (backdrop-filter: blur(20px)) {
+  .backdrop-blur-xl {
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+  }
+}
+
+/* Responsive font sizes */
+@media (max-width: 640px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+/* Bottom navigation bar safe area */
+@media (max-width: 1023px) {
+  main {
+    /* Account for bottom nav + safe area */
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* Prevent rubber-banding on iOS when at scroll boundaries */
+html, body {
+  overscroll-behavior: none;
+}
+
+/* Smooth transitions for orientation changes */
+@media screen and (orientation: portrait), screen and (orientation: landscape) {
+  * {
+    transition-property: none !important;
+  }
+  
+  body.orientation-changing * {
+    transition-duration: 0s !important;
+  }
+}

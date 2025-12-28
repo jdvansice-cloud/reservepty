@@ -33,6 +33,17 @@ export interface OrganizationMembership {
   organization: Organization;
 }
 
+export interface Subscription {
+  id: string;
+  organization_id: string;
+  status: 'trial' | 'active' | 'past_due' | 'canceled' | 'complimentary';
+  billing_cycle: 'monthly' | 'yearly' | null;
+  seat_limit: number;
+  trial_ends_at: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -40,56 +51,17 @@ interface AuthContextType {
   organization: Organization | null;
   membership: OrganizationMembership | null;
   memberships: OrganizationMembership[];
+  subscription: Subscription | null;
   isLoading: boolean;
-  isDevMode: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
   signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | Error | null }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   setCurrentOrganization: (orgId: string) => void;
-  devModeLogin: () => void;
-  devModeLogout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Dev mode mock data for development bypass
-const DEV_USER: User = {
-  id: 'dev-user-001',
-  email: 'dev@reservepty.com',
-  app_metadata: {},
-  user_metadata: { first_name: 'Development', last_name: 'User' },
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-} as User;
-
-const DEV_PROFILE: Profile = {
-  id: 'dev-user-001',
-  email: 'dev@reservepty.com',
-  first_name: 'Development',
-  last_name: 'User',
-  avatar_url: null,
-  phone: '+507 6000-0000',
-};
-
-const DEV_ORGANIZATION: Organization = {
-  id: 'dev-org-001',
-  legal_name: 'Demo Family Office, S.A.',
-  commercial_name: 'Demo Family Office',
-  ruc: '155701234-2-2023',
-  dv: '23',
-  billing_email: 'billing@demofamily.com',
-  logo_url: null,
-};
-
-const DEV_MEMBERSHIP: OrganizationMembership = {
-  id: 'dev-membership-001',
-  organization_id: 'dev-org-001',
-  role: 'owner',
-  tier_id: null,
-  organization: DEV_ORGANIZATION,
-};
 
 // Helper to get session from cookies
 function getSessionFromCookies(): { accessToken: string; refreshToken: string; user: User } | null {
@@ -169,14 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [membership, setMembership] = useState<OrganizationMembership | null>(null);
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDevMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return process.env.NEXT_PUBLIC_DEV_MODE === 'true' || 
-             localStorage.getItem('devMode') === 'true';
-    }
-    return false;
-  });
 
   const router = useRouter();
   
@@ -185,6 +151,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // Fetch subscription for an organization
+  const fetchSubscription = useCallback(async (orgId: string, accessToken: string) => {
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    try {
+      const subRes = await fetch(
+        `${baseUrl}/rest/v1/subscriptions?organization_id=eq.${orgId}&select=*`,
+        {
+          headers: {
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+      
+      if (subRes.ok) {
+        const subs = await subRes.json();
+        if (subs.length > 0) {
+          setSubscription(subs[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
+    }
+  }, []);
 
   const fetchProfileWithFetch = useCallback(async (userId: string, accessToken: string) => {
     const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -242,6 +235,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           setMembership(currentMembership);
           setOrganization(currentMembership.organization);
+          
+          // Fetch subscription for the current organization
+          await fetchSubscription(currentMembership.organization_id, accessToken);
         }
       }
     } catch (error) {
@@ -249,20 +245,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchSubscription]);
 
   useEffect(() => {
-    // Check for dev mode session first
-    if (typeof window !== 'undefined' && localStorage.getItem('devModeActive') === 'true') {
-      setUser(DEV_USER);
-      setProfile(DEV_PROFILE);
-      setOrganization(DEV_ORGANIZATION);
-      setMembership(DEV_MEMBERSHIP);
-      setMemberships([DEV_MEMBERSHIP]);
-      setIsLoading(false);
-      return;
-    }
-
     // Try to get session from cookies directly
     const cookieSession = getSessionFromCookies();
     
@@ -363,6 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOrganization(null);
     setMembership(null);
     setMemberships([]);
+    setSubscription(null);
     localStorage.removeItem('currentOrganizationId');
     router.push('/login');
   };
@@ -373,35 +359,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const setCurrentOrganization = (orgId: string) => {
+  const setCurrentOrganization = async (orgId: string) => {
     const selected = memberships.find((m) => m.organization_id === orgId);
     if (selected) {
       setMembership(selected);
       setOrganization(selected.organization);
       localStorage.setItem('currentOrganizationId', orgId);
+      
+      // Fetch subscription for new organization
+      if (session?.access_token) {
+        await fetchSubscription(orgId, session.access_token);
+      }
     }
-  };
-
-  const devModeLogin = () => {
-    if (isDevMode) {
-      localStorage.setItem('devModeActive', 'true');
-      setUser(DEV_USER);
-      setProfile(DEV_PROFILE);
-      setOrganization(DEV_ORGANIZATION);
-      setMembership(DEV_MEMBERSHIP);
-      setMemberships([DEV_MEMBERSHIP]);
-      setIsLoading(false);
-    }
-  };
-
-  const devModeLogout = () => {
-    localStorage.removeItem('devModeActive');
-    setUser(null);
-    setProfile(null);
-    setOrganization(null);
-    setMembership(null);
-    setMemberships([]);
-    router.push('/login');
   };
 
   return (
@@ -413,16 +382,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organization,
         membership,
         memberships,
+        subscription,
         isLoading,
-        isDevMode,
         signIn,
         signUp,
         signInWithGoogle,
         signOut,
         refreshProfile,
         setCurrentOrganization,
-        devModeLogin,
-        devModeLogout,
       }}
     >
       {children}
