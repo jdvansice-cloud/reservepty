@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/components/auth/auth-provider';
 import { cn, SECTIONS, formatDate } from '@/lib/utils';
-import { PlaneBookingModal, PlaneBookingData } from '@/components/calendar/PlaneBookingModal';
+import { PlaneBookingData } from '@/components/calendar/PlaneBookingModal';
+import PlaneBookingModal from '@/components/calendar/PlaneBookingModal';
 import { EditableItinerary } from '@/components/calendar/EditableItinerary';
 import {
   ChevronLeft,
