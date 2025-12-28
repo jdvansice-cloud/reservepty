@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { sendEmail, generateInvitationEmailHtml, generateInvitationEmailText } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Role labels for email
+const roleLabels: Record<string, { en: string; es: string }> = {
+  owner: { en: 'Owner', es: 'Propietario' },
+  admin: { en: 'Admin', es: 'Administrador' },
+  manager: { en: 'Manager', es: 'Gerente' },
+  member: { en: 'Member', es: 'Miembro' },
+  viewer: { en: 'Viewer', es: 'Observador' },
+};
 
 // Create invitation
 export async function POST(request: NextRequest) {
@@ -16,7 +25,7 @@ export async function POST(request: NextRequest) {
     
     const token = authHeader.split(' ')[1];
     
-    // Create supabase client with user's token for permission checks
+    // Create supabase client with user's token
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -110,10 +119,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invitation: ' + inviteError.message }, { status: 500 });
     }
     
-    // Get organization details
+    // Get organization details including SMTP settings
     const { data: org } = await supabase
       .from('organizations')
-      .select('commercial_name, legal_name')
+      .select('commercial_name, legal_name, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name, smtp_secure, smtp_enabled')
       .eq('id', organizationId)
       .single();
     
@@ -123,45 +132,64 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://reservepty.vercel.app';
     const inviteUrl = `${baseUrl}/invite/${invitation.token}`;
     
-    // Try to use Supabase Admin API to send invite email
-    if (supabaseServiceKey) {
+    // Try to send email if SMTP is configured
+    let emailSent = false;
+    let emailError: string | null = null;
+    
+    if (org?.smtp_enabled && org?.smtp_host && org?.smtp_user && org?.smtp_password) {
       try {
-        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-          auth: { autoRefreshToken: false, persistSession: false }
-        });
+        const roleLabel = roleLabels[role || 'member']?.en || role || 'Member';
         
-        // Use Supabase's built-in invite
-        const { error: inviteEmailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          redirectTo: inviteUrl,
-          data: {
-            invited_to_org: organizationId,
-            invited_role: role || 'member',
-            invited_tier: tierId || null,
-            org_name: orgName,
+        const result = await sendEmail(
+          {
+            host: org.smtp_host,
+            port: org.smtp_port || 587,
+            user: org.smtp_user,
+            password: org.smtp_password,
+            fromEmail: org.smtp_from_email || org.smtp_user,
+            fromName: org.smtp_from_name || orgName,
+            secure: org.smtp_secure ?? true,
+          },
+          {
+            to: email.toLowerCase(),
+            subject: `You're invited to join ${orgName} / Te invitan a ${orgName} - ReservePTY`,
+            html: generateInvitationEmailHtml({
+              orgName,
+              inviteUrl,
+              role: roleLabel,
+            }),
+            text: generateInvitationEmailText({
+              orgName,
+              inviteUrl,
+              role: roleLabel,
+            }),
           }
-        });
+        );
         
-        if (inviteEmailError) {
-          console.warn('Supabase invite email failed:', inviteEmailError.message);
-          // Don't fail - invitation record was created, user can still use the link
+        emailSent = result.success;
+        if (!result.success) {
+          emailError = result.error || 'Failed to send email';
+          console.warn('SMTP send failed:', emailError);
         }
-      } catch (emailError) {
-        console.warn('Email service error:', emailError);
+      } catch (err) {
+        console.error('Email sending error:', err);
+        emailError = err instanceof Error ? err.message : 'Email sending failed';
       }
-    } else {
-      console.log('📧 SUPABASE_SERVICE_ROLE_KEY not configured - invitation created but email not sent');
-      console.log(`   Invite URL: ${inviteUrl}`);
     }
     
-    // Return success with invitation details
+    // Return success with invitation details and URL
     return NextResponse.json({
       success: true,
+      emailSent,
+      emailError: emailSent ? null : emailError,
+      smtpConfigured: !!(org?.smtp_enabled && org?.smtp_host),
       invitation: {
         id: invitation.id,
         email: invitation.email,
         role: invitation.role,
         expiresAt: invitation.expires_at,
         inviteUrl,
+        orgName,
       },
     });
     
@@ -180,12 +208,6 @@ export async function GET(request: NextRequest) {
     }
     
     const token = authHeader.split(' ')[1];
-    const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get('organizationId');
-    
-    if (!organizationId) {
-      return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
-    }
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -201,7 +223,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    // Verify membership
+    const { searchParams } = new URL(request.url);
+    const organizationId = searchParams.get('organizationId');
+    
+    if (!organizationId) {
+      return NextResponse.json({ error: 'Organization ID required' }, { status: 400 });
+    }
+    
+    // Check membership
     const { data: membership } = await supabase
       .from('organization_members')
       .select('role')
@@ -210,35 +239,107 @@ export async function GET(request: NextRequest) {
       .single();
     
     if (!membership) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+      return NextResponse.json({ error: 'Not a member of this organization' }, { status: 403 });
     }
     
     // Get pending invitations
     const { data: invitations, error } = await supabase
       .from('invitations')
-      .select(`
-        id,
-        email,
-        role,
-        tier_id,
-        created_at,
-        expires_at,
-        invited_by,
-        profiles:invited_by (first_name, last_name)
-      `)
+      .select('id, token, email, role, tier_id, created_at, expires_at')
       .eq('organization_id', organizationId)
       .is('accepted_at', null)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
     
     if (error) {
+      console.error('Error fetching invitations:', error);
       return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 });
     }
     
-    return NextResponse.json({ invitations });
+    // Add invite URLs to each invitation
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://reservepty.vercel.app';
+    const invitationsWithUrls = invitations?.map(inv => ({
+      ...inv,
+      inviteUrl: `${baseUrl}/invite/${inv.token}`
+    })) || [];
+    
+    return NextResponse.json({ invitations: invitationsWithUrls });
     
   } catch (error) {
-    console.error('Get invitations error:', error);
+    console.error('GET invitations error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Delete/cancel an invitation
+export async function DELETE(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    });
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const { searchParams } = new URL(request.url);
+    const invitationId = searchParams.get('id');
+    
+    if (!invitationId) {
+      return NextResponse.json({ error: 'Invitation ID required' }, { status: 400 });
+    }
+    
+    // Get the invitation to verify organization
+    const { data: invitation } = await supabase
+      .from('invitations')
+      .select('organization_id')
+      .eq('id', invitationId)
+      .single();
+    
+    if (!invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 });
+    }
+    
+    // Check if user has permission
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', invitation.organization_id)
+      .eq('user_id', user.id)
+      .single();
+    
+    if (!membership || !['owner', 'admin', 'manager'].includes(membership.role)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+    
+    // Delete the invitation
+    const { error: deleteError } = await supabase
+      .from('invitations')
+      .delete()
+      .eq('id', invitationId);
+    
+    if (deleteError) {
+      console.error('Error deleting invitation:', deleteError);
+      return NextResponse.json({ error: 'Failed to delete invitation' }, { status: 500 });
+    }
+    
+    return NextResponse.json({ success: true });
+    
+  } catch (error) {
+    console.error('DELETE invitation error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
