@@ -1,14 +1,71 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { Playfair_Display, DM_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-import { AuthProvider } from '@/context/AuthContext';
-import { LanguageProvider } from '@/context/LanguageContext';
+import { Toaster } from '@/components/ui/toaster';
+import { Providers } from './providers';
+
+// Display font - elegant serif for headings
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-playfair',
+});
+
+// Body font - modern sans-serif
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-dm-sans',
+});
+
+// Monospace font - for data and code
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains',
+});
 
 export const metadata: Metadata = {
-  title: 'ReservePTY - Luxury Asset Management',
-  description: 'Premium platform for managing luxury assets including private planes, helicopters, residences, and boats.',
-  icons: {
-    icon: '/favicon.ico',
+  title: {
+    default: 'ReservePTY | Luxury Asset Management',
+    template: '%s | ReservePTY',
   },
+  description:
+    'Premium platform for managing luxury assets. Coordinate bookings for private planes, helicopters, residences, and watercraft.',
+  keywords: [
+    'luxury assets',
+    'private aviation',
+    'yacht management',
+    'property booking',
+    'family office',
+    'asset management',
+  ],
+  authors: [{ name: 'ReservePTY' }],
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://reservepty.com',
+    title: 'ReservePTY | Luxury Asset Management',
+    description:
+      'Premium platform for managing luxury assets. Coordinate bookings for private planes, helicopters, residences, and watercraft.',
+    siteName: 'ReservePTY',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'ReservePTY | Luxury Asset Management',
+    description:
+      'Premium platform for managing luxury assets.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0a1628',
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -17,13 +74,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <LanguageProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </LanguageProvider>
+    <html
+      lang="en"
+      className={`${playfair.variable} ${dmSans.variable} ${jetbrains.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="font-sans antialiased noise">
+        <Providers>
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   );

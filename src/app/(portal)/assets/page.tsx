@@ -1,69 +1,344 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useLanguage } from '@/context/LanguageContext';
-import { Plus, Plane, Navigation2, Building2, Ship } from 'lucide-react';
+
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn, SECTIONS } from '@/lib/utils';
+import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
+import {
+  Plus,
+  Search,
+  Filter,
+  Plane,
+  Ship,
+  Home,
+  MapPin,
+  Users,
+  Calendar,
+  Edit,
+  Eye,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
+
+const SECTION_ICONS: Record<string, React.ElementType> = {
+  planes: Plane,
+  helicopters: Plane,
+  residences: Home,
+  watercraft: Ship,
+};
+
+interface Asset {
+  id: string;
+  name: string;
+  section: string;
+  description: string | null;
+  primary_photo_url: string | null;
+  details: {
+    location?: string;
+    capacity?: number;
+    manufacturer?: string;
+    model?: string;
+    [key: string]: any;
+  };
+  is_active: boolean;
+  current_location: {
+    name?: string;
+    [key: string]: any;
+  } | null;
+}
 
 export default function AssetsPage() {
-  const { session, organizationId, entitlements } = useAuth();
-  const { language } = useLanguage();
-  const [assets, setAssets] = useState<any[]>([]);
-  const [filter, setFilter] = useState('all');
-  const [loading, setLoading] = useState(true);
-
-  const t = { en: { title: 'Assets', addAsset: 'Add Asset', noAssets: 'No assets found', all: 'All' }, es: { title: 'Activos', addAsset: 'Agregar Activo', noAssets: 'No se encontraron activos', all: 'Todos' } };
-  const text = t[language];
-  const sectionIcons: Record<string, any> = { planes: Plane, helicopters: Navigation2, residences: Building2, boats: Ship };
+  const searchParams = useSearchParams();
+  const initialSection = searchParams.get('section') || 'all';
+  const { organization, session } = useAuth();
+  const { t, language } = useLanguage();
+  
+  const [search, setSearch] = useState('');
+  const [activeSection, setActiveSection] = useState(initialSection);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchAssets() {
-      if (!session?.access_token || !organizationId) return;
-      try {
-        const response = await fetch(`/api/assets?organizationId=${organizationId}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-        if (response.ok) { const data = await response.json(); setAssets(data.assets || []); }
-      } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
-    }
-    fetchAssets();
-  }, [session, organizationId]);
+    const fetchAssets = async () => {
+      if (!organization?.id || !session?.access_token) {
+        setIsLoading(false);
+        return;
+      }
 
-  const filteredAssets = filter === 'all' ? assets : assets.filter(a => a.section === filter);
-  const activeSections = entitlements.filter(e => e.is_active).map(e => e.section);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        const response = await fetch(
+          `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&is_active=eq.true&select=*&order=created_at.desc`,
+          {
+            headers: {
+              'apikey': apiKey!,
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch assets');
+        }
+
+        const data = await response.json();
+        setAssets(data);
+      } catch (err: any) {
+        console.error('Error fetching assets:', err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAssets();
+  }, [organization?.id, session?.access_token]);
+
+  const filteredAssets = useMemo(() => {
+    return assets.filter((asset) => {
+      const matchesSection = activeSection === 'all' || asset.section === activeSection;
+      const matchesSearch =
+        asset.name.toLowerCase().includes(search.toLowerCase()) ||
+        (asset.description || '').toLowerCase().includes(search.toLowerCase()) ||
+        (asset.details?.location || '').toLowerCase().includes(search.toLowerCase());
+      return matchesSection && matchesSearch;
+    });
+  }, [assets, activeSection, search]);
+
+  const getStatusColor = (isActive: boolean) => {
+    return isActive
+      ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+      : 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+  };
+
+  const getAssetLocation = (asset: Asset) => {
+    return asset.current_location?.name || asset.details?.location || asset.details?.homeAirport || asset.details?.homePort || asset.details?.city || 'Location not set';
+  };
+
+  const getAssetCapacity = (asset: Asset) => {
+    return asset.details?.capacity || asset.details?.passengerCapacity || asset.details?.maxGuests || asset.details?.cabins || '-';
+  };
+
+  const getAssetSubtitle = (asset: Asset) => {
+    const parts = [];
+    if (asset.details?.manufacturer) parts.push(asset.details.manufacturer);
+    if (asset.details?.model) parts.push(asset.details.model);
+    if (asset.details?.tailNumber) parts.push(`(${asset.details.tailNumber})`);
+    if (asset.details?.year) parts.push(asset.details.year);
+    return parts.length > 0 ? parts.join(' ') : null;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 pb-24 lg:pb-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-white">{text.title}</h1>
-        <Link href="/assets/new" className="flex items-center gap-2 bg-[#c8b273] text-[#0a1628] px-4 py-2 rounded-lg font-semibold">
-          <Plus className="w-5 h-5" />{text.addAsset}
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">{t('assets.title')}</h1>
+          <p className="text-muted mt-1">{t('assets.subtitle')}</p>
+        </div>
+        <Link href="/assets/new">
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            {t('assets.addAsset')}
+          </Button>
         </Link>
       </div>
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg whitespace-nowrap ${filter === 'all' ? 'bg-[#c8b273] text-[#0a1628]' : 'bg-white/10 text-white'}`}>{text.all}</button>
-        {activeSections.map(section => (
-          <button key={section} onClick={() => setFilter(section)} className={`px-4 py-2 rounded-lg whitespace-nowrap capitalize ${filter === section ? 'bg-[#c8b273] text-[#0a1628]' : 'bg-white/10 text-white'}`}>{section}</button>
-        ))}
-      </div>
-      {loading ? (
-        <div className="flex justify-center py-12"><div className="w-8 h-8 border-2 border-[#c8b273] border-t-transparent rounded-full animate-spin" /></div>
-      ) : filteredAssets.length === 0 ? (
-        <div className="text-center py-12 text-white/50">{text.noAssets}</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredAssets.map(asset => {
-            const Icon = sectionIcons[asset.section] || Plane;
+
+      {/* Error Display */}
+      {error && (
+        <Card className="border-red-500/20 bg-red-500/10">
+          <CardContent className="py-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            <p className="text-red-400">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+          <Input
+            type="text"
+            placeholder={language === 'es' ? 'Buscar activos...' : 'Search assets...'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Section Tabs */}
+        <div className="flex items-center gap-1 p-1 bg-surface rounded-lg overflow-x-auto">
+          <button
+            onClick={() => setActiveSection('all')}
+            className={cn(
+              'px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
+              activeSection === 'all'
+                ? 'bg-gold-500 text-navy-950'
+                : 'text-muted hover:text-white hover:bg-white/5'
+            )}
+          >
+            {t('common.all')}
+          </button>
+          {Object.entries(SECTIONS).map(([key, section]) => {
+            const Icon = SECTION_ICONS[key];
             return (
-              <Link key={asset.id} href={`/assets/${asset.id}`} className="bg-white/5 rounded-xl border border-white/10 overflow-hidden hover:border-[#c8b273]/50 transition-colors">
-                {asset.primary_photo_url ? (
-                  <img src={asset.primary_photo_url} alt={asset.name} className="w-full h-40 object-cover" />
-                ) : (
-                  <div className="w-full h-40 bg-white/10 flex items-center justify-center"><Icon className="w-12 h-12 text-white/30" /></div>
+              <button
+                key={key}
+                onClick={() => setActiveSection(key)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
+                  activeSection === key
+                    ? 'bg-gold-500 text-navy-950'
+                    : 'text-muted hover:text-white hover:bg-white/5'
                 )}
-                <div className="p-4">
-                  <h3 className="text-white font-semibold">{asset.name}</h3>
-                  <p className="text-white/50 text-sm capitalize">{asset.section}</p>
-                </div>
+              >
+                <Icon className="w-4 h-4" />
+                {t(`assets.section.${key}`)}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Assets Grid */}
+      {filteredAssets.length === 0 ? (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-surface mx-auto flex items-center justify-center mb-4">
+              <Filter className="w-8 h-8 text-muted" />
+            </div>
+            <h3 className="text-lg font-display font-semibold text-white mb-2">
+              {t('assets.noAssets')}
+            </h3>
+            <p className="text-muted max-w-md mx-auto">
+              {search
+                ? (language === 'es' ? `No hay activos que coincidan con "${search}".` : `No assets match "${search}". Try a different search term.`)
+                : activeSection !== 'all'
+                ? (language === 'es' ? `No hay ${t(`assets.section.${activeSection}`).toLowerCase()} agregados aún.` : `No ${t(`assets.section.${activeSection}`).toLowerCase()} added yet.`)
+                : (language === 'es' ? 'Comienza agregando tu primer activo.' : 'Get started by adding your first asset.')}
+            </p>
+            {!search && (
+              <Link href={activeSection !== 'all' ? `/assets/new?section=${activeSection}` : '/assets/new'}>
+                <Button className="mt-6">
+                  <Plus className="w-4 h-4 mr-2" />
+                  {activeSection !== 'all' 
+                    ? (language === 'es' ? `Agregar ${t(`assets.section.${activeSection}`)}` : `Add ${t(`assets.section.${activeSection}`)}`)
+                    : (language === 'es' ? 'Agregar tu Primer Activo' : 'Add Your First Asset')}
+                </Button>
               </Link>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredAssets.map((asset) => {
+            const Icon = SECTION_ICONS[asset.section] || Plane;
+            const sectionInfo = SECTIONS[asset.section as keyof typeof SECTIONS];
+            return (
+              <Card key={asset.id} className="card-hover overflow-hidden group">
+                {/* Image */}
+                <div className="relative aspect-[4/3] overflow-hidden bg-surface">
+                  {asset.primary_photo_url ? (
+                    <img
+                      src={asset.primary_photo_url}
+                      alt={asset.name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Icon className="w-16 h-16 text-muted" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent" />
+                  
+                  {/* Section Badge */}
+                  <div
+                    className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                    style={{
+                      backgroundColor: `${sectionInfo?.color}20`,
+                      color: sectionInfo?.color,
+                    }}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {t(`assets.section.${asset.section}`)}
+                  </div>
+
+                  {/* Status Badge */}
+                  <div
+                    className={cn(
+                      'absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-medium border capitalize',
+                      getStatusColor(asset.is_active)
+                    )}
+                  >
+                    {asset.is_active ? t('common.active') : t('common.inactive')}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Link href={`/assets/${asset.id}`}>
+                      <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </Link>
+                    <Link href={`/assets/${asset.id}/edit`}>
+                      <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
+                        <Edit className="w-4 h-4" />
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <CardContent className="p-5">
+                  <h3 className="font-display font-semibold text-white text-lg group-hover:text-gold-500 transition-colors">
+                    {asset.name}
+                  </h3>
+                  {getAssetSubtitle(asset) && (
+                    <p className="text-sm text-gold-500/80 mt-0.5">
+                      {getAssetSubtitle(asset)}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted mt-1 line-clamp-2">
+                    {asset.description || (language === 'es' ? 'Sin descripción' : 'No description')}
+                  </p>
+
+                  <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-sm text-muted">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4" />
+                      <span className="truncate max-w-[120px]">{getAssetLocation(asset)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      <span>{getAssetCapacity(asset)}</span>
+                    </div>
+                  </div>
+
+                  <Link href={`/calendar?asset=${asset.id}`}>
+                    <Button variant="secondary" size="sm" className="w-full mt-4">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {language === 'es' ? 'Reservar' : 'Book Now'}
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

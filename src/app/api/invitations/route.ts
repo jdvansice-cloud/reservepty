@@ -1,18 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { sendEmail, generateInvitationEmailHtml, generateInvitationEmailText } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Role labels for email
-const roleLabels: Record<string, { en: string; es: string }> = {
-  owner: { en: 'Owner', es: 'Propietario' },
-  admin: { en: 'Admin', es: 'Administrador' },
-  manager: { en: 'Manager', es: 'Gerente' },
-  member: { en: 'Member', es: 'Miembro' },
-  viewer: { en: 'Viewer', es: 'Observador' },
-};
 
 // Create invitation
 export async function POST(request: NextRequest) {
@@ -119,10 +109,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invitation: ' + inviteError.message }, { status: 500 });
     }
     
-    // Get organization details including SMTP settings
+    // Get organization details for the response
     const { data: org } = await supabase
       .from('organizations')
-      .select('commercial_name, legal_name, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from_email, smtp_from_name, smtp_secure, smtp_enabled')
+      .select('commercial_name, legal_name')
       .eq('id', organizationId)
       .single();
     
@@ -132,57 +122,10 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://reservepty.vercel.app';
     const inviteUrl = `${baseUrl}/invite/${invitation.token}`;
     
-    // Try to send email if SMTP is configured
-    let emailSent = false;
-    let emailError: string | null = null;
-    
-    if (org?.smtp_enabled && org?.smtp_host && org?.smtp_user && org?.smtp_password) {
-      try {
-        const roleLabel = roleLabels[role || 'member']?.en || role || 'Member';
-        
-        const result = await sendEmail(
-          {
-            host: org.smtp_host,
-            port: org.smtp_port || 587,
-            user: org.smtp_user,
-            password: org.smtp_password,
-            fromEmail: org.smtp_from_email || org.smtp_user,
-            fromName: org.smtp_from_name || orgName,
-            secure: org.smtp_secure ?? true,
-          },
-          {
-            to: email.toLowerCase(),
-            subject: `You're invited to join ${orgName} / Te invitan a ${orgName} - ReservePTY`,
-            html: generateInvitationEmailHtml({
-              orgName,
-              inviteUrl,
-              role: roleLabel,
-            }),
-            text: generateInvitationEmailText({
-              orgName,
-              inviteUrl,
-              role: roleLabel,
-            }),
-          }
-        );
-        
-        emailSent = result.success;
-        if (!result.success) {
-          emailError = result.error || 'Failed to send email';
-          console.warn('SMTP send failed:', emailError);
-        }
-      } catch (err) {
-        console.error('Email sending error:', err);
-        emailError = err instanceof Error ? err.message : 'Email sending failed';
-      }
-    }
-    
     // Return success with invitation details and URL
+    // User can share this URL manually
     return NextResponse.json({
       success: true,
-      emailSent,
-      emailError: emailSent ? null : emailError,
-      smtpConfigured: !!(org?.smtp_enabled && org?.smtp_host),
       invitation: {
         id: invitation.id,
         email: invitation.email,

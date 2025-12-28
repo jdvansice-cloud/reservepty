@@ -4,18 +4,38 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: 'xylwaukdoypvmfvsvyxz.supabase.co',
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
     ],
   },
-  typescript: {
-    ignoreBuildErrors: false,
+  // Security headers
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+    ];
   },
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;
