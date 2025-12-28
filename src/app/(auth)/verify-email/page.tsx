@@ -7,7 +7,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mail, CheckCircle2, RefreshCw, ArrowLeft, Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from '@/components/ui/use-toast';
 
 function VerifyEmailContent() {

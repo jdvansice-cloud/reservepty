@@ -54,7 +54,7 @@ interface AuthContextType {
   subscription: Subscription | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
-  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | Error | null }>;
+  signUp: (email: string, password: string, metadata?: { firstName?: string; lastName?: string }) => Promise<{ error: AuthError | Error | null; confirmEmail?: boolean }>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;

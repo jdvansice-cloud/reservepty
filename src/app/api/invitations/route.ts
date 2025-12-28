@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Create invitation
 export async function POST(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     
     const token = authHeader.split(' ')[1];
     
-    // Create supabase client with user's token
+    // Create supabase client with user's token for permission checks
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'An invitation has already been sent to this email' }, { status: 400 });
     }
     
-    // Create the invitation
+    // Create the invitation record in our database
     const { data: invitation, error: inviteError } = await supabase
       .from('invitations')
       .insert({
@@ -109,54 +110,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invitation: ' + inviteError.message }, { status: 500 });
     }
     
-    // Get organization details for the email
+    // Get organization details
     const { data: org } = await supabase
       .from('organizations')
       .select('commercial_name, legal_name')
       .eq('id', organizationId)
       .single();
     
-    // Get inviter's profile
-    const { data: inviterProfile } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, email')
-      .eq('id', user.id)
-      .single();
+    const orgName = org?.commercial_name || org?.legal_name || 'ReservePTY';
     
     // Build invitation URL
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://reservepty.vercel.app';
     const inviteUrl = `${baseUrl}/invite/${invitation.token}`;
     
-    // Send invitation email
-    const emailData = {
-      to: email,
-      organizationName: org?.commercial_name || org?.legal_name || 'ReservePTY Organization',
-      inviterName: inviterProfile ? `${inviterProfile.first_name} ${inviterProfile.last_name}` : 'A team member',
-      inviterEmail: inviterProfile?.email,
-      role: role || 'member',
-      inviteUrl,
-      expiresAt: invitation.expires_at,
-    };
-
-    // Try to send email (won't fail the request if email fails)
-    try {
-      const emailResponse = await fetch(`${baseUrl}/api/send-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'invitation',
-          to: email,
-          data: emailData,
-        }),
-      });
-      
-      if (!emailResponse.ok) {
-        console.warn('Email sending failed but invitation was created');
+    // Try to use Supabase Admin API to send invite email
+    if (supabaseServiceKey) {
+      try {
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        });
+        
+        // Use Supabase's built-in invite
+        const { error: inviteEmailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          redirectTo: inviteUrl,
+          data: {
+            invited_to_org: organizationId,
+            invited_role: role || 'member',
+            invited_tier: tierId || null,
+            org_name: orgName,
+          }
+        });
+        
+        if (inviteEmailError) {
+          console.warn('Supabase invite email failed:', inviteEmailError.message);
+          // Don't fail - invitation record was created, user can still use the link
+        }
+      } catch (emailError) {
+        console.warn('Email service error:', emailError);
       }
-    } catch (emailError) {
-      console.warn('Email service error:', emailError);
+    } else {
+      console.log('📧 SUPABASE_SERVICE_ROLE_KEY not configured - invitation created but email not sent');
+      console.log(`   Invite URL: ${inviteUrl}`);
     }
     
     // Return success with invitation details
@@ -169,7 +163,6 @@ export async function POST(request: NextRequest) {
         expiresAt: invitation.expires_at,
         inviteUrl,
       },
-      emailData,
     });
     
   } catch (error) {
