@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +27,7 @@ function GoogleIcon({ className }: { className?: string }) {
 export default function SignUpPage() {
   const router = useRouter();
   const { signUp, signInWithGoogle } = useAuth();
+  const { t, language } = useLanguage();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -43,19 +45,25 @@ export default function SignUpPage() {
       await signInWithGoogle();
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to sign up with Google.',
+        title: t('auth.login.error'),
+        description: language === 'es' ? 'Error al registrarse con Google.' : 'Failed to sign up with Google.',
         variant: 'error',
       });
       setIsGoogleLoading(false);
     }
   };
 
-  const passwordRequirements = [
-    { label: 'At least 8 characters', met: formData.password.length >= 8 },
-    { label: 'Contains a number', met: /\d/.test(formData.password) },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(formData.password) },
-  ];
+  const passwordRequirements = language === 'es' 
+    ? [
+        { label: 'Al menos 8 caracteres', met: formData.password.length >= 8 },
+        { label: 'Contiene un número', met: /\d/.test(formData.password) },
+        { label: 'Contiene letra mayúscula', met: /[A-Z]/.test(formData.password) },
+      ]
+    : [
+        { label: 'At least 8 characters', met: formData.password.length >= 8 },
+        { label: 'Contains a number', met: /\d/.test(formData.password) },
+        { label: 'Contains uppercase letter', met: /[A-Z]/.test(formData.password) },
+      ];
 
   const allRequirementsMet = passwordRequirements.every((req) => req.met);
   const passwordsMatch = formData.password === formData.confirmPassword && formData.confirmPassword.length > 0;
@@ -65,8 +73,10 @@ export default function SignUpPage() {
 
     if (!allRequirementsMet) {
       toast({
-        title: 'Weak password',
-        description: 'Please ensure your password meets all requirements.',
+        title: language === 'es' ? 'Contraseña débil' : 'Weak password',
+        description: language === 'es' 
+          ? 'Asegúrate de que tu contraseña cumpla todos los requisitos.'
+          : 'Please ensure your password meets all requirements.',
         variant: 'error',
       });
       return;
@@ -74,8 +84,10 @@ export default function SignUpPage() {
 
     if (!passwordsMatch) {
       toast({
-        title: 'Passwords do not match',
-        description: 'Please ensure both passwords are identical.',
+        title: t('auth.signup.passwordMismatch'),
+        description: language === 'es' 
+          ? 'Asegúrate de que ambas contraseñas sean idénticas.'
+          : 'Please ensure both passwords are identical.',
         variant: 'error',
       });
       return;
@@ -84,35 +96,58 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signUp(formData.email, formData.password, {
+      const result = await signUp(formData.email, formData.password, {
         firstName: formData.firstName,
         lastName: formData.lastName,
       });
 
-      if (error) {
+      if (result.error) {
         toast({
-          title: 'Sign up failed',
-          description: error.message,
+          title: t('auth.signup.failed'),
+          description: result.error.message,
           variant: 'error',
         });
-      } else {
+      } else if (result.confirmEmail) {
+        // Email confirmation required - redirect to verify email page
         toast({
-          title: 'Account created!',
-          description: 'Please check your email to verify your account.',
+          title: t('auth.signup.success'),
+          description: t('auth.signup.successDesc'),
+          variant: 'success',
+        });
+        router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
+      } else {
+        // No email confirmation needed (auto-confirmed or dev mode)
+        toast({
+          title: t('auth.signup.success'),
+          description: language === 'es' ? 'Tu cuenta ha sido creada' : 'Your account has been created',
           variant: 'success',
         });
         router.push('/onboarding');
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred. Please try again.',
+        title: t('auth.login.error'),
+        description: t('auth.login.errorDesc'),
         variant: 'error',
       });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const features = language === 'es'
+    ? [
+        'Prueba gratuita de 14 días',
+        'Sin tarjeta de crédito requerida',
+        'Acceso completo a todas las funciones',
+        'Cancela cuando quieras',
+      ]
+    : [
+        '14-day free trial',
+        'No credit card required',
+        'Full access to all features',
+        'Cancel anytime',
+      ];
 
   return (
     <div className="min-h-screen bg-navy-950 flex">
@@ -125,21 +160,19 @@ export default function SignUpPage() {
             <span className="text-gold-500 font-display text-4xl font-bold">R</span>
           </div>
           <h2 className="font-display text-3xl font-semibold text-white mb-4">
-            Start Managing Your Assets Today
+            {language === 'es' 
+              ? 'Comienza a Gestionar tus Activos Hoy' 
+              : 'Start Managing Your Assets Today'}
           </h2>
           <p className="text-muted text-lg mb-8">
-            Join family offices and organizations who trust ReservePTY 
-            for their luxury asset coordination.
+            {language === 'es'
+              ? 'Únete a family offices y organizaciones que confían en ReservePTY para la coordinación de sus activos de lujo.'
+              : 'Join family offices and organizations who trust ReservePTY for their luxury asset coordination.'}
           </p>
 
           {/* Features list */}
           <ul className="space-y-4">
-            {[
-              '14-day free trial',
-              'No credit card required',
-              'Full access to all features',
-              'Cancel anytime',
-            ].map((feature) => (
+            {features.map((feature) => (
               <li key={feature} className="flex items-center gap-3 text-muted">
                 <div className="w-5 h-5 rounded-full bg-gold-500/20 flex items-center justify-center">
                   <Check className="w-3 h-3 text-gold-500" />
@@ -179,10 +212,10 @@ export default function SignUpPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="font-display text-3xl font-semibold text-white mb-2">
-              Create your account
+              {t('auth.signup.title')}
             </h1>
             <p className="text-muted">
-              Get started with your 14-day free trial
+              {t('auth.signup.subtitle')}
             </p>
           </div>
 
@@ -191,10 +224,10 @@ export default function SignUpPage() {
             {/* Name fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First name</Label>
+                <Label htmlFor="firstName">{t('auth.signup.firstName')}</Label>
                 <Input
                   id="firstName"
-                  placeholder="John"
+                  placeholder={language === 'es' ? 'Juan' : 'John'}
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                   required
@@ -202,10 +235,10 @@ export default function SignUpPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last name</Label>
+                <Label htmlFor="lastName">{t('auth.signup.lastName')}</Label>
                 <Input
                   id="lastName"
-                  placeholder="Smith"
+                  placeholder={language === 'es' ? 'Pérez' : 'Smith'}
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                   required
@@ -216,11 +249,11 @@ export default function SignUpPage() {
 
             {/* Email */}
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('auth.signup.email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@company.com"
+                placeholder={language === 'es' ? 'tu@empresa.com' : 'you@company.com'}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
@@ -230,12 +263,12 @@ export default function SignUpPage() {
 
             {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t('auth.signup.password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Create a strong password"
+                  placeholder={language === 'es' ? 'Crea una contraseña segura' : 'Create a strong password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
@@ -276,11 +309,11 @@ export default function SignUpPage() {
 
             {/* Confirm password */}
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Label htmlFor="confirmPassword">{t('auth.signup.confirmPassword')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
-                placeholder="Confirm your password"
+                placeholder={language === 'es' ? 'Confirma tu contraseña' : 'Confirm your password'}
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                 required
@@ -288,7 +321,7 @@ export default function SignUpPage() {
                 error={formData.confirmPassword.length > 0 && !passwordsMatch}
               />
               {formData.confirmPassword && !passwordsMatch && (
-                <p className="text-xs text-red-400">Passwords do not match</p>
+                <p className="text-xs text-red-400">{t('auth.signup.passwordMismatch')}</p>
               )}
             </div>
 
@@ -299,17 +332,17 @@ export default function SignUpPage() {
               loading={isLoading}
               disabled={!allRequirementsMet || !passwordsMatch}
             >
-              Create Account
+              {t('auth.signup.submit')}
             </Button>
 
             <p className="text-center text-subtle text-xs">
-              By creating an account, you agree to our{' '}
+              {t('auth.signup.terms')}{' '}
               <Link href="/terms" className="text-gold-500 hover:underline">
-                Terms of Service
+                {t('auth.signup.termsLink')}
               </Link>{' '}
-              and{' '}
+              {t('auth.signup.and')}{' '}
               <Link href="/privacy" className="text-gold-500 hover:underline">
-                Privacy Policy
+                {t('auth.signup.privacyLink')}
               </Link>
             </p>
           </form>
@@ -320,7 +353,7 @@ export default function SignUpPage() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-navy-950 px-4 text-subtle">or sign up with</span>
+              <span className="bg-navy-950 px-4 text-subtle">{t('auth.signup.orContinue')}</span>
             </div>
           </div>
 
@@ -338,7 +371,7 @@ export default function SignUpPage() {
             ) : (
               <GoogleIcon className="w-5 h-5 mr-2" />
             )}
-            Continue with Google
+            {language === 'es' ? 'Continuar con Google' : 'Continue with Google'}
           </Button>
 
           {/* Divider */}
@@ -347,14 +380,14 @@ export default function SignUpPage() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-navy-950 px-4 text-subtle">Already have an account?</span>
+              <span className="bg-navy-950 px-4 text-subtle">{t('auth.signup.haveAccount')}</span>
             </div>
           </div>
 
           {/* Sign in link */}
           <Link href="/login">
             <Button variant="secondary" className="w-full" size="lg">
-              Sign In Instead
+              {language === 'es' ? 'Iniciar Sesión' : 'Sign In Instead'}
             </Button>
           </Link>
         </div>

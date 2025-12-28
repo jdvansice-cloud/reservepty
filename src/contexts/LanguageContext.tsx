@@ -317,6 +317,44 @@ const translations: Record<Language, Record<string, string>> = {
     'day.fri': 'Vie',
     'day.sat': 'Sáb',
     
+    // Auth Pages
+    'auth.login.title': 'Bienvenido de nuevo',
+    'auth.login.subtitle': 'Ingresa tus credenciales para acceder a tu cuenta',
+    'auth.login.email': 'Correo electrónico',
+    'auth.login.password': 'Contraseña',
+    'auth.login.forgotPassword': '¿Olvidaste tu contraseña?',
+    'auth.login.submit': 'Iniciar Sesión',
+    'auth.login.noAccount': '¿No tienes cuenta?',
+    'auth.login.signUp': 'Regístrate',
+    'auth.login.orContinue': 'O continúa con',
+    'auth.login.google': 'Google',
+    'auth.login.success': '¡Bienvenido de nuevo!',
+    'auth.login.successDesc': 'Has iniciado sesión correctamente.',
+    'auth.login.failed': 'Error al iniciar sesión',
+    'auth.login.error': 'Error',
+    'auth.login.errorDesc': 'Ocurrió un error inesperado. Intenta de nuevo.',
+    
+    'auth.signup.title': 'Crear Cuenta',
+    'auth.signup.subtitle': 'Comienza tu prueba gratuita de 14 días',
+    'auth.signup.firstName': 'Nombre',
+    'auth.signup.lastName': 'Apellido',
+    'auth.signup.email': 'Correo electrónico',
+    'auth.signup.password': 'Contraseña',
+    'auth.signup.confirmPassword': 'Confirmar Contraseña',
+    'auth.signup.submit': 'Crear Cuenta',
+    'auth.signup.haveAccount': '¿Ya tienes cuenta?',
+    'auth.signup.signIn': 'Inicia Sesión',
+    'auth.signup.orContinue': 'O continúa con',
+    'auth.signup.google': 'Google',
+    'auth.signup.success': '¡Cuenta creada!',
+    'auth.signup.successDesc': 'Por favor verifica tu correo electrónico.',
+    'auth.signup.failed': 'Error al crear cuenta',
+    'auth.signup.passwordMismatch': 'Las contraseñas no coinciden',
+    'auth.signup.terms': 'Al registrarte, aceptas nuestros',
+    'auth.signup.termsLink': 'Términos de Servicio',
+    'auth.signup.and': 'y',
+    'auth.signup.privacyLink': 'Política de Privacidad',
+    
     // Dev Mode
     'dev.mode': 'Modo Desarrollo',
   },
@@ -626,6 +664,44 @@ const translations: Record<Language, Record<string, string>> = {
     'day.fri': 'Fri',
     'day.sat': 'Sat',
     
+    // Auth Pages
+    'auth.login.title': 'Welcome back',
+    'auth.login.subtitle': 'Enter your credentials to access your account',
+    'auth.login.email': 'Email',
+    'auth.login.password': 'Password',
+    'auth.login.forgotPassword': 'Forgot password?',
+    'auth.login.submit': 'Sign In',
+    'auth.login.noAccount': "Don't have an account?",
+    'auth.login.signUp': 'Sign up',
+    'auth.login.orContinue': 'Or continue with',
+    'auth.login.google': 'Google',
+    'auth.login.success': 'Welcome back!',
+    'auth.login.successDesc': 'You have been signed in successfully.',
+    'auth.login.failed': 'Sign in failed',
+    'auth.login.error': 'Error',
+    'auth.login.errorDesc': 'An unexpected error occurred. Please try again.',
+    
+    'auth.signup.title': 'Create Account',
+    'auth.signup.subtitle': 'Start your free 14-day trial',
+    'auth.signup.firstName': 'First Name',
+    'auth.signup.lastName': 'Last Name',
+    'auth.signup.email': 'Email',
+    'auth.signup.password': 'Password',
+    'auth.signup.confirmPassword': 'Confirm Password',
+    'auth.signup.submit': 'Create Account',
+    'auth.signup.haveAccount': 'Already have an account?',
+    'auth.signup.signIn': 'Sign in',
+    'auth.signup.orContinue': 'Or continue with',
+    'auth.signup.google': 'Google',
+    'auth.signup.success': 'Account created!',
+    'auth.signup.successDesc': 'Please check your email to verify your account.',
+    'auth.signup.failed': 'Sign up failed',
+    'auth.signup.passwordMismatch': 'Passwords do not match',
+    'auth.signup.terms': 'By signing up, you agree to our',
+    'auth.signup.termsLink': 'Terms of Service',
+    'auth.signup.and': 'and',
+    'auth.signup.privacyLink': 'Privacy Policy',
+    
     // Dev Mode
     'dev.mode': 'Development Mode',
   },
@@ -633,15 +709,38 @@ const translations: Record<Language, Record<string, string>> = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// Detect browser language
+function detectBrowserLanguage(): Language {
+  if (typeof window === 'undefined') return 'en';
+  
+  // Get browser language
+  const browserLang = navigator.language || (navigator as any).userLanguage || '';
+  
+  // Check if it starts with 'es' (es, es-ES, es-MX, es-419, etc.)
+  if (browserLang.toLowerCase().startsWith('es')) {
+    return 'es';
+  }
+  
+  // Default to English for all other languages
+  return 'en';
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>('es');
+  const [language, setLanguageState] = useState<Language>('en');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // Load saved language from localStorage
+    // Load saved language from localStorage, or detect from browser
     const saved = localStorage.getItem('reservepty-language') as Language;
     if (saved && (saved === 'es' || saved === 'en')) {
       setLanguageState(saved);
+    } else {
+      // No saved preference, detect from browser
+      const detected = detectBrowserLanguage();
+      setLanguageState(detected);
+      localStorage.setItem('reservepty-language', detected);
     }
+    setIsInitialized(true);
   }, []);
 
   const setLanguage = (lang: Language) => {

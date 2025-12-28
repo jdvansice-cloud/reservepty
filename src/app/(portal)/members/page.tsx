@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn, ROLES } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/components/auth/auth-provider';
+import { toast } from '@/components/ui/use-toast';
 import {
   Plus,
   Search,
@@ -117,18 +119,52 @@ const mockTiers = [
   { id: '3', name: 'Staff', priority: 3 },
 ];
 
+interface Tier {
+  id: string;
+  name: string;
+  priority: number;
+}
+
 export default function MembersPage() {
   const { t, language } = useLanguage();
+  const { organization, session } = useAuth();
   const [search, setSearch] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedMember, setSelectedMember] = useState<string | null>(null);
+  const [tiers, setTiers] = useState<Tier[]>(mockTiers);
   
   const [inviteForm, setInviteForm] = useState({
     email: '',
     role: 'member',
     tierId: '',
   });
+
+  // Fetch tiers on mount
+  useEffect(() => {
+    const fetchTiers = async () => {
+      if (!organization?.id || !session?.access_token) return;
+      
+      try {
+        const response = await fetch(`/api/tiers?organizationId=${organization.id}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.tiers && data.tiers.length > 0) {
+            setTiers(data.tiers);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching tiers:', error);
+      }
+    };
+    
+    fetchTiers();
+  }, [organization?.id, session?.access_token]);
 
   const filteredMembers = useMemo(() => {
     return mockMembers.filter(
@@ -140,11 +176,68 @@ export default function MembersPage() {
   }, [search]);
 
   const handleInvite = async () => {
+    if (!organization?.id || !session?.access_token) {
+      toast({
+        title: language === 'es' ? 'Error' : 'Error',
+        description: language === 'es' ? 'No se pudo obtener la organización' : 'Could not get organization',
+        variant: 'error',
+      });
+      return;
+    }
+
+    if (!inviteForm.email) {
+      toast({
+        title: language === 'es' ? 'Error' : 'Error',
+        description: language === 'es' ? 'El correo electrónico es requerido' : 'Email is required',
+        variant: 'error',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setShowInviteModal(false);
-    setInviteForm({ email: '', role: 'member', tierId: '' });
+
+    try {
+      const response = await fetch('/api/invitations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: inviteForm.email,
+          role: inviteForm.role,
+          tierId: inviteForm.tierId || null,
+          organizationId: organization.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send invitation');
+      }
+
+      toast({
+        title: language === 'es' ? '¡Invitación enviada!' : 'Invitation sent!',
+        description: language === 'es' 
+          ? `Se envió una invitación a ${inviteForm.email}` 
+          : `An invitation was sent to ${inviteForm.email}`,
+        variant: 'success',
+      });
+
+      setShowInviteModal(false);
+      setInviteForm({ email: '', role: 'member', tierId: '' });
+
+    } catch (error: any) {
+      console.error('Invite error:', error);
+      toast({
+        title: language === 'es' ? 'Error' : 'Error',
+        description: error.message || (language === 'es' ? 'Error al enviar invitación' : 'Failed to send invitation'),
+        variant: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const memberStats = useMemo(() => {
@@ -399,7 +492,7 @@ export default function MembersPage() {
               </div>
 
               <div>
-                <Label>{language === 'es' ? 'Nivel' : 'Tier'}</Label>
+                <Label>{language === 'es' ? 'Nivel (Opcional)' : 'Tier (Optional)'}</Label>
                 <select
                   value={inviteForm.tierId}
                   onChange={(e) =>
@@ -408,7 +501,7 @@ export default function MembersPage() {
                   className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500"
                 >
                   <option value="">{language === 'es' ? 'Seleccionar nivel...' : 'Select a tier...'}</option>
-                  {mockTiers.map((tier) => (
+                  {tiers.map((tier) => (
                     <option key={tier.id} value={tier.id}>
                       {tier.name} ({language === 'es' ? 'Prioridad' : 'Priority'} {tier.priority})
                     </option>
@@ -427,7 +520,7 @@ export default function MembersPage() {
                 <Button
                   className="flex-1"
                   onClick={handleInvite}
-                  disabled={!inviteForm.email || !inviteForm.tierId || isSubmitting}
+                  disabled={!inviteForm.email || isSubmitting}
                 >
                   {isSubmitting ? (
                     <>

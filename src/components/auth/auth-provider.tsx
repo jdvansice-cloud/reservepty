@@ -298,14 +298,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             first_name: metadata?.firstName,
             last_name: metadata?.lastName,
           },
-          emailRedirectTo: `${window.location.origin}/onboarding`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
         },
       });
 
       if (error) return { error };
 
-      // Create profile for new user
-      if (data.user) {
+      // Note: Profile creation happens after email verification in the callback
+      // But we still try to create it here for faster onboarding if email is auto-confirmed
+      if (data.user && data.session) {
         const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         
@@ -315,6 +316,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             'Content-Type': 'application/json',
             'apikey': apiKey!,
             'Authorization': `Bearer ${data.session?.access_token || apiKey}`,
+            'Prefer': 'return=minimal',
           },
           body: JSON.stringify({
             id: data.user.id,
@@ -322,10 +324,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             first_name: metadata?.firstName || null,
             last_name: metadata?.lastName || null,
           }),
+        }).catch(() => {
+          // Ignore profile creation errors - will be handled in callback
         });
       }
 
-      return { error: null };
+      // Return user data to check if email confirmation is required
+      return { 
+        error: null, 
+        user: data.user,
+        session: data.session,
+        confirmEmail: !data.session // If no session, email confirmation is required
+      };
     } catch (error) {
       return { error: error as Error };
     }

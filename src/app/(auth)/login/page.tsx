@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,6 +28,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const { signIn, signInWithGoogle } = useAuth();
+  const { t, language } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,22 +44,22 @@ function LoginForm() {
 
       if (error) {
         toast({
-          title: 'Sign in failed',
+          title: t('auth.login.failed'),
           description: error.message,
           variant: 'error',
         });
       } else {
         toast({
-          title: 'Welcome back!',
-          description: 'You have been signed in successfully.',
+          title: t('auth.login.success'),
+          description: t('auth.login.successDesc'),
           variant: 'success',
         });
         router.push(redirectTo);
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'An unexpected error occurred. Please try again.',
+        title: t('auth.login.error'),
+        description: t('auth.login.errorDesc'),
         variant: 'error',
       });
     } finally {
@@ -71,8 +73,8 @@ function LoginForm() {
       await signInWithGoogle();
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to sign in with Google.',
+        title: t('auth.login.error'),
+        description: language === 'es' ? 'Error al iniciar sesión con Google.' : 'Failed to sign in with Google.',
         variant: 'error',
       });
       setIsGoogleLoading(false);
@@ -94,21 +96,21 @@ function LoginForm() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display text-3xl font-semibold text-white mb-2">
-          Welcome back
+          {t('auth.login.title')}
         </h1>
         <p className="text-muted">
-          Sign in to your account to continue
+          {t('auth.login.subtitle')}
         </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">{t('auth.login.email')}</Label>
           <Input
             id="email"
             type="email"
-            placeholder="you@company.com"
+            placeholder={language === 'es' ? 'tu@empresa.com' : 'you@company.com'}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -117,12 +119,12 @@ function LoginForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <Label htmlFor="password">{t('auth.login.password')}</Label>
           <div className="relative">
             <Input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder={language === 'es' ? 'Ingresa tu contraseña' : 'Enter your password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -146,13 +148,13 @@ function LoginForm() {
               href="/forgot-password"
               className="text-sm text-gold-500 hover:text-gold-400 transition-colors"
             >
-              Forgot password?
+              {t('auth.login.forgotPassword')}
             </Link>
           </div>
         </div>
 
         <Button type="submit" className="w-full" size="lg" loading={isLoading}>
-          Sign In
+          {t('auth.login.submit')}
         </Button>
       </form>
 
@@ -162,7 +164,7 @@ function LoginForm() {
           <div className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-navy-950 px-4 text-subtle">or continue with</span>
+          <span className="bg-navy-950 px-4 text-subtle">{t('auth.login.orContinue')}</span>
         </div>
       </div>
 
@@ -180,7 +182,7 @@ function LoginForm() {
         ) : (
           <GoogleIcon className="w-5 h-5 mr-2" />
         )}
-        Continue with Google
+        {language === 'es' ? 'Continuar con Google' : 'Continue with Google'}
       </Button>
 
       {/* Divider */}
@@ -189,14 +191,16 @@ function LoginForm() {
           <div className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-navy-950 px-4 text-subtle">New to ReservePTY?</span>
+          <span className="bg-navy-950 px-4 text-subtle">
+            {t('auth.login.noAccount')}
+          </span>
         </div>
       </div>
 
       {/* Sign up link */}
       <Link href="/signup">
         <Button variant="secondary" className="w-full" size="lg">
-          Create an Account
+          {language === 'es' ? 'Crear una Cuenta' : 'Create an Account'}
         </Button>
       </Link>
     </div>
@@ -207,6 +211,43 @@ function LoginFormFallback() {
   return (
     <div className="w-full max-w-md flex items-center justify-center py-20">
       <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
+    </div>
+  );
+}
+
+function DecorativeSection() {
+  const { language } = useLanguage();
+  
+  return (
+    <div className="hidden lg:flex flex-1 relative bg-gradient-luxury items-center justify-center p-12">
+      <div className="absolute inset-0 bg-gradient-radial from-gold-500/10 via-transparent to-transparent" />
+      
+      {/* Decorative content */}
+      <div className="relative z-10 max-w-lg text-center">
+        <div className="w-24 h-24 mx-auto mb-8 rounded-3xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
+          <span className="text-gold-500 font-display text-4xl font-bold">R</span>
+        </div>
+        <h2 className="font-display text-3xl font-semibold text-white mb-4">
+          {language === 'es' ? 'Gestión de Activos de Lujo' : 'Luxury Asset Management'}
+        </h2>
+        <p className="text-muted text-lg">
+          {language === 'es' 
+            ? 'Coordina reservas de aviones privados, helicópteros, residencias exclusivas y yates de manera fluida.'
+            : 'Seamlessly coordinate bookings across private planes, helicopters, exclusive residences, and yachts.'}
+        </p>
+      </div>
+
+      {/* Background pattern */}
+      <div className="absolute inset-0 opacity-5">
+        <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs>
+            <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+              <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-gold-500" />
+            </pattern>
+          </defs>
+          <rect width="100" height="100" fill="url(#grid)" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -222,35 +263,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right side - Decorative */}
-      <div className="hidden lg:flex flex-1 relative bg-gradient-luxury items-center justify-center p-12">
-        <div className="absolute inset-0 bg-gradient-radial from-gold-500/10 via-transparent to-transparent" />
-        
-        {/* Decorative content */}
-        <div className="relative z-10 max-w-lg text-center">
-          <div className="w-24 h-24 mx-auto mb-8 rounded-3xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
-            <span className="text-gold-500 font-display text-4xl font-bold">R</span>
-          </div>
-          <h2 className="font-display text-3xl font-semibold text-white mb-4">
-            Luxury Asset Management
-          </h2>
-          <p className="text-muted text-lg">
-            Seamlessly coordinate bookings across private planes, helicopters, 
-            exclusive residences, and yachts.
-          </p>
-        </div>
-
-        {/* Background pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
-                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-gold-500" />
-              </pattern>
-            </defs>
-            <rect width="100" height="100" fill="url(#grid)" />
-          </svg>
-        </div>
-      </div>
+      <DecorativeSection />
     </div>
   );
 }

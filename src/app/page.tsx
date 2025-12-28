@@ -1,8 +1,13 @@
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Plane, Ship, Home, Navigation2, ChevronRight, Shield, Calendar, Users } from 'lucide-react';
 
 export default function LandingPage() {
+  const { t, language } = useLanguage();
+  
   return (
     <div className="min-h-screen bg-navy-950">
       {/* Navigation */}
@@ -20,12 +25,12 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             <Link href="/login">
               <Button variant="ghost" size="sm">
-                Sign In
+                {language === 'es' ? 'Iniciar Sesión' : 'Sign In'}
               </Button>
             </Link>
             <Link href="/signup">
               <Button size="sm">
-                Get Started
+                {language === 'es' ? 'Comenzar' : 'Get Started'}
               </Button>
             </Link>
           </div>
@@ -45,41 +50,57 @@ export default function LandingPage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gold-500/10 border border-gold-500/20 mb-8 animate-fade-up">
             <span className="w-2 h-2 bg-gold-500 rounded-full animate-pulse" />
-            <span className="text-gold-500 text-sm font-medium">Premium Asset Management Platform</span>
+            <span className="text-gold-500 text-sm font-medium">
+              {language === 'es' ? 'Plataforma Premium de Gestión de Activos' : 'Premium Asset Management Platform'}
+            </span>
           </div>
 
           {/* Headline */}
           <h1 className="font-display text-display-lg md:text-display-xl text-white mb-6 animate-fade-up delay-100">
-            Manage Your{' '}
-            <span className="text-gradient-gold">Luxury Assets</span>
-            <br />
-            With Elegance
+            {language === 'es' ? (
+              <>
+                Gestiona tus{' '}
+                <span className="text-gradient-gold">Activos de Lujo</span>
+                <br />
+                con Elegancia
+              </>
+            ) : (
+              <>
+                Manage Your{' '}
+                <span className="text-gradient-gold">Luxury Assets</span>
+                <br />
+                With Elegance
+              </>
+            )}
           </h1>
 
           {/* Subheadline */}
           <p className="text-xl text-muted max-w-2xl mx-auto mb-10 animate-fade-up delay-200">
-            Coordinate bookings across private aviation, yachts, and exclusive properties. 
-            Built for family offices and discerning asset owners.
+            {language === 'es'
+              ? 'Coordina reservas de aviación privada, yates y propiedades exclusivas. Diseñado para family offices y propietarios exigentes.'
+              : 'Coordinate bookings across private aviation, yachts, and exclusive properties. Built for family offices and discerning asset owners.'}
           </p>
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up delay-300">
             <Link href="/signup">
               <Button size="xl" className="w-full sm:w-auto">
-                Start Free Trial
+                {language === 'es' ? 'Iniciar Prueba Gratis' : 'Start Free Trial'}
                 <ChevronRight className="w-5 h-5" />
               </Button>
             </Link>
             <Link href="/login">
               <Button variant="secondary" size="xl" className="w-full sm:w-auto">
-                View Demo
+                {language === 'es' ? 'Ver Demo' : 'View Demo'}
               </Button>
             </Link>
           </div>
 
           {/* Trust indicators */}
           <p className="text-subtle text-sm mt-8 animate-fade-up delay-400">
-            14-day free trial • No credit card required • Cancel anytime
+            {language === 'es'
+              ? 'Prueba gratis de 14 días • Sin tarjeta de crédito • Cancela cuando quieras'
+              : '14-day free trial • No credit card required • Cancel anytime'}
           </p>
         </div>
       </section>
@@ -89,11 +110,12 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="font-display text-display-sm text-white mb-4">
-              One Platform, All Your Assets
+              {language === 'es' ? 'Una Plataforma, Todos tus Activos' : 'One Platform, All Your Assets'}
             </h2>
             <p className="text-muted text-lg max-w-2xl mx-auto">
-              Modular sections let you manage exactly what you need. 
-              Activate any combination of asset types.
+              {language === 'es'
+                ? 'Secciones modulares te permiten gestionar exactamente lo que necesitas. Activa cualquier combinación de tipos de activos.'
+                : 'Modular sections let you manage exactly what you need. Activate any combination of asset types.'}
             </p>
           </div>
 
@@ -103,9 +125,13 @@ export default function LandingPage() {
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center group-hover:bg-gold-500/20 transition-colors">
                 <Plane className="w-8 h-8 text-gold-500" />
               </div>
-              <h3 className="font-display text-xl font-semibold text-white mb-2">Planes</h3>
+              <h3 className="font-display text-xl font-semibold text-white mb-2">
+                {language === 'es' ? 'Aviones' : 'Planes'}
+              </h3>
               <p className="text-muted text-sm">
-                Private jets, turboprops, and aircraft with flight routing and ETA calculations
+                {language === 'es'
+                  ? 'Jets privados, turbohélices y aeronaves con rutas de vuelo y cálculos de ETA'
+                  : 'Private jets, turboprops, and aircraft with flight routing and ETA calculations'}
               </p>
             </div>
 
@@ -114,9 +140,13 @@ export default function LandingPage() {
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
                 <Navigation2 className="w-8 h-8 text-emerald-400" />
               </div>
-              <h3 className="font-display text-xl font-semibold text-white mb-2">Helicopters</h3>
+              <h3 className="font-display text-xl font-semibold text-white mb-2">
+                {language === 'es' ? 'Helicópteros' : 'Helicopters'}
+              </h3>
               <p className="text-muted text-sm">
-                Rotorcraft management with helipad directory and flight-hour logging
+                {language === 'es'
+                  ? 'Gestión de aeronaves de rotor con directorio de helipuertos y registro de horas de vuelo'
+                  : 'Rotorcraft management with helipad directory and flight-hour logging'}
               </p>
             </div>
 
@@ -125,9 +155,13 @@ export default function LandingPage() {
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                 <Home className="w-8 h-8 text-blue-400" />
               </div>
-              <h3 className="font-display text-xl font-semibold text-white mb-2">Residences</h3>
+              <h3 className="font-display text-xl font-semibold text-white mb-2">
+                {language === 'es' ? 'Residencias' : 'Residences'}
+              </h3>
               <p className="text-muted text-sm">
-                Homes, villas, and meeting spaces with check-in/out management
+                {language === 'es'
+                  ? 'Casas, villas y espacios de reunión con gestión de check-in/out'
+                  : 'Homes, villas, and meeting spaces with check-in/out management'}
               </p>
             </div>
 
@@ -136,9 +170,13 @@ export default function LandingPage() {
               <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
                 <Ship className="w-8 h-8 text-purple-400" />
               </div>
-              <h3 className="font-display text-xl font-semibold text-white mb-2">Boats</h3>
+              <h3 className="font-display text-xl font-semibold text-white mb-2">
+                {language === 'es' ? 'Embarcaciones' : 'Boats'}
+              </h3>
               <p className="text-muted text-sm">
-                Yachts and watercraft with port directory and captain coordination
+                {language === 'es'
+                  ? 'Yates y embarcaciones con directorio de puertos y coordinación de capitanes'
+                  : 'Yachts and watercraft with port directory and captain coordination'}
               </p>
             </div>
           </div>
@@ -150,10 +188,14 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="font-display text-display-sm text-white mb-4">
-              Built for Complexity, Designed for Simplicity
+              {language === 'es' 
+                ? 'Diseñado para la Complejidad, Creado para la Simplicidad' 
+                : 'Built for Complexity, Designed for Simplicity'}
             </h2>
             <p className="text-muted text-lg max-w-2xl mx-auto">
-              Advanced features wrapped in an intuitive interface your entire team can use.
+              {language === 'es'
+                ? 'Funciones avanzadas envueltas en una interfaz intuitiva que todo tu equipo puede usar.'
+                : 'Advanced features wrapped in an intuitive interface your entire team can use.'}
             </p>
           </div>
 
@@ -164,11 +206,12 @@ export default function LandingPage() {
                 <Calendar className="w-6 h-6 text-gold-500" />
               </div>
               <h3 className="font-display text-lg font-semibold text-white mb-3">
-                Unified Calendar
+                {language === 'es' ? 'Calendario Unificado' : 'Unified Calendar'}
               </h3>
               <p className="text-muted">
-                See all assets across all categories in one comprehensive view. 
-                No more switching between systems.
+                {language === 'es'
+                  ? 'Ve todos los activos de todas las categorías en una vista integral. Sin más cambios entre sistemas.'
+                  : 'See all assets across all categories in one comprehensive view. No more switching between systems.'}
               </p>
             </div>
 
@@ -178,11 +221,12 @@ export default function LandingPage() {
                 <Users className="w-6 h-6 text-gold-500" />
               </div>
               <h3 className="font-display text-lg font-semibold text-white mb-3">
-                Priority Tiers
+                {language === 'es' ? 'Niveles de Prioridad' : 'Priority Tiers'}
               </h3>
               <p className="text-muted">
-                Define member tiers with booking priority rules. 
-                Ensure principals always have first access.
+                {language === 'es'
+                  ? 'Define niveles de miembros con reglas de prioridad de reserva. Asegura que los principales siempre tengan acceso primero.'
+                  : 'Define member tiers with booking priority rules. Ensure principals always have first access.'}
               </p>
             </div>
 
@@ -192,11 +236,12 @@ export default function LandingPage() {
                 <Shield className="w-6 h-6 text-gold-500" />
               </div>
               <h3 className="font-display text-lg font-semibold text-white mb-3">
-                Secure & Private
+                {language === 'es' ? 'Seguro y Privado' : 'Secure & Private'}
               </h3>
               <p className="text-muted">
-                Enterprise-grade security with complete data isolation 
-                between organizations.
+                {language === 'es'
+                  ? 'Seguridad de nivel empresarial con aislamiento completo de datos entre organizaciones.'
+                  : 'Enterprise-grade security with complete data isolation between organizations.'}
               </p>
             </div>
           </div>
@@ -209,15 +254,16 @@ export default function LandingPage() {
         
         <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
           <h2 className="font-display text-display text-white mb-6">
-            Ready to Streamline Your Assets?
+            {language === 'es' ? '¿Listo para Optimizar tus Activos?' : 'Ready to Streamline Your Assets?'}
           </h2>
           <p className="text-muted text-lg mb-10">
-            Join discerning families and organizations who trust ReservePTY 
-            to manage their most valuable assets.
+            {language === 'es'
+              ? 'Únete a familias y organizaciones exigentes que confían en ReservePTY para gestionar sus activos más valiosos.'
+              : 'Join discerning families and organizations who trust ReservePTY to manage their most valuable assets.'}
           </p>
           <Link href="/signup">
             <Button size="xl">
-              Start Your Free Trial
+              {language === 'es' ? 'Inicia tu Prueba Gratis' : 'Start Your Free Trial'}
               <ChevronRight className="w-5 h-5" />
             </Button>
           </Link>
@@ -238,15 +284,15 @@ export default function LandingPage() {
             </div>
             
             <p className="text-subtle text-sm">
-              © {new Date().getFullYear()} ReservePTY. All rights reserved.
+              © {new Date().getFullYear()} ReservePTY. {language === 'es' ? 'Todos los derechos reservados.' : 'All rights reserved.'}
             </p>
             
             <div className="flex items-center gap-6">
               <Link href="/privacy" className="text-muted hover:text-white text-sm transition-colors">
-                Privacy
+                {language === 'es' ? 'Privacidad' : 'Privacy'}
               </Link>
               <Link href="/terms" className="text-muted hover:text-white text-sm transition-colors">
-                Terms
+                {language === 'es' ? 'Términos' : 'Terms'}
               </Link>
             </div>
           </div>
