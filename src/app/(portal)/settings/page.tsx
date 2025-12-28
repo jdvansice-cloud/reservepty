@@ -46,6 +46,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 
 const SECTION_ICONS: Record<string, React.ElementType> = {
