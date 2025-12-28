@@ -1083,23 +1083,25 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-surface rounded-lg w-fit overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
-              activeTab === tab.id
-                ? 'bg-gold-500 text-navy-950'
-                : 'text-muted hover:text-white'
-            )}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
-          </button>
-        ))}
+      {/* Tabs - Horizontally Scrollable */}
+      <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 tabs-scroll">
+        <div className="flex items-center gap-1 p-1 bg-surface rounded-lg min-w-max">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
+                activeTab === tab.id
+                  ? 'bg-gold-500 text-navy-950'
+                  : 'text-muted hover:text-white'
+              )}
+            >
+              <tab.icon className="w-4 h-4 shrink-0" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Organization Tab */}

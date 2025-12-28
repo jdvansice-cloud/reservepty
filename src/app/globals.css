@@ -69,6 +69,25 @@
     @apply bg-gold-500/50;
   }
 
+  /* Horizontal scroll container for tabs */
+  .tabs-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--navy-700) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabs-scroll::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .tabs-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .tabs-scroll::-webkit-scrollbar-thumb {
+    @apply bg-navy-600 rounded-full;
+  }
+
   /* Selection styling */
   ::selection {
     @apply bg-gold-500/30 text-white;
