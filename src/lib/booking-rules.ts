@@ -173,7 +173,7 @@ function getWeekendNumber(date: Date): number {
 /**
  * Main function to check all applicable rules for a booking
  */
-export async function checkBookingRules(
+export function checkBookingRules(
   organizationId: string,
   assetId: string,
   userId: string,
