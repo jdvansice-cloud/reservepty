@@ -146,7 +146,26 @@ src/
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 0.47.0 | Dec 28, 2025 | Complete marketing site: enhanced landing page with features, pricing, how it works, FAQ, testimonials sections. Added privacy, terms, and contact pages. Removed demo button in favor of free trial CTA. |
+| 0.46.9 | Dec 27, 2025 | Previous stable version with core platform functionality |
 | 1.0.0-alpha | Dec 26, 2025 | Complete UI, DB schema ready |
+
+## 🌐 Marketing Pages
+
+The landing page now includes:
+- **Hero Section** - Premium branding with animated elements
+- **Features** - 6 key platform features with icons
+- **Asset Sections** - Visual showcase of planes, helicopters, residences, boats
+- **How It Works** - 4-step onboarding flow
+- **Pricing** - Dynamic pricing with monthly/yearly toggle
+- **Testimonials** - Customer quotes
+- **FAQ** - Expandable Q&A section
+- **CTA** - Final call-to-action with trust indicators
+
+Additional pages:
+- `/privacy` - Privacy Policy
+- `/terms` - Terms of Service
+- `/contact` - Contact form with company info
 
 ## 📄 License
 
