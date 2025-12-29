@@ -1206,20 +1206,31 @@ export default function CalendarPage() {
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setShowBookingModal(false)}
           />
-          <Card className="relative w-full sm:max-w-lg animate-slide-up sm:animate-fade-up max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl">
-            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-navy-900 z-10 border-b border-border">
-              <CardTitle className="text-lg sm:text-xl font-display">{t('calendar.newBooking')}</CardTitle>
+          <Card className="relative w-full sm:max-w-lg animate-slide-up sm:animate-fade-up max-h-[85vh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border-navy-700">
+            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-navy-800 z-10 border-b border-navy-700 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gold-500/10 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-gold-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-display text-white">{t('calendar.newBooking')}</CardTitle>
+                  <p className="text-xs text-gray-400">{language === 'es' ? 'Reserve su activo' : 'Reserve your asset'}</p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowBookingModal(false)}
-                className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white transition-colors"
+                className="p-2 rounded-lg hover:bg-navy-700 text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
-            <CardContent className="space-y-4 pb-6">
+            <CardContent className="space-y-5 p-6">
               {assets.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-muted mb-4">{language === 'es' ? 'No hay activos disponibles. Agrega un activo primero.' : 'No assets available. Add an asset first.'}</p>
+                  <div className="w-16 h-16 rounded-full bg-navy-700/50 mx-auto flex items-center justify-center mb-4">
+                    <CalendarIcon className="w-8 h-8 text-gray-500" />
+                  </div>
+                  <p className="text-gray-400 mb-4">{language === 'es' ? 'No hay activos disponibles. Agrega un activo primero.' : 'No assets available. Add an asset first.'}</p>
                   <Button variant="secondary" onClick={() => setShowBookingModal(false)}>
                     {language === 'es' ? 'Cerrar' : 'Close'}
                   </Button>
@@ -1227,8 +1238,8 @@ export default function CalendarPage() {
               ) : (
                 <>
                   {/* Asset Selection */}
-                  <div>
-                    <Label className="text-sm">{language === 'es' ? 'Seleccionar Activo *' : 'Select Asset *'}</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Seleccionar Activo' : 'Select Asset'} <span className="text-gold-500">*</span></Label>
                     <select
                       value={bookingForm.assetId}
                       onChange={(e) => {
@@ -1249,46 +1260,50 @@ export default function CalendarPage() {
                           setBookingForm((prev) => ({ ...prev, assetId: selectedId }));
                         }
                       }}
-                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white focus:outline-none focus:border-gold-500 text-sm sm:text-base"
+                      className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-lg text-white focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500/20 text-sm transition-colors"
                     >
                       <option value="">{language === 'es' ? 'Seleccionar un activo...' : 'Choose an asset...'}</option>
                       {assets.map((asset) => (
                         <option key={asset.id} value={asset.id}>
                           {asset.name} ({t(`assets.section.${asset.section}`)})
-                          {asset.section === 'planes' && ' ✈️'}
-                          {asset.section === 'helicopters' && ' 🚁'}
                         </option>
                       ))}
                     </select>
                     {assets.some(a => ['planes', 'helicopters'].includes(a.section)) && (
-                      <p className="text-xs text-muted mt-1">
-                        {language === 'es' ? '✈️🚁 Las aeronaves tienen un flujo de reserva mejorado con planificación de itinerario' : '✈️🚁 Aircraft have an enhanced booking flow with itinerary planning'}
-                      </p>
+                      <div className="flex items-center gap-2 mt-2 p-3 bg-navy-900/50 rounded-lg border border-navy-700/50">
+                        <div className="flex items-center gap-1">
+                          <Plane className="w-3.5 h-3.5 text-gold-500" />
+                          <Navigation className="w-3.5 h-3.5 text-gold-500" />
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          {language === 'es' ? 'Las aeronaves tienen un flujo de reserva mejorado con planificación de itinerario' : 'Aircraft have an enhanced booking flow with itinerary planning'}
+                        </p>
+                      </div>
                     )}
                   </div>
 
                   {/* Title */}
-                  <div>
-                    <Label className="text-sm">{language === 'es' ? 'Título de la Reserva' : 'Booking Title'}</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Título de la Reserva' : 'Booking Title'}</Label>
                     <Input
                       placeholder={language === 'es' ? 'Ej: Vacaciones familiares, Viaje de negocios' : 'e.g., Family vacation, Business trip'}
                       value={bookingForm.title}
                       onChange={(e) =>
                         setBookingForm((prev) => ({ ...prev, title: e.target.value }))
                       }
-                      className="text-sm sm:text-base"
+                      className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                     />
                   </div>
 
                   {/* Date Selection */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                    <div>
-                      <Label className="text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-300">
                         {selectedAsset?.section === 'residences' 
-                          ? (language === 'es' ? 'Fecha de Llegada *' : 'Arrival Date *')
+                          ? (language === 'es' ? 'Fecha de Llegada' : 'Arrival Date')
                           : selectedAsset?.section === 'watercraft'
-                          ? (language === 'es' ? 'Fecha de Salida *' : 'Departure Date *')
-                          : (language === 'es' ? 'Fecha de Inicio *' : 'Start Date *')}
+                          ? (language === 'es' ? 'Fecha de Salida' : 'Departure Date')
+                          : (language === 'es' ? 'Fecha de Inicio' : 'Start Date')} <span className="text-gold-500">*</span>
                       </Label>
                       <Input
                         type="date"
@@ -1296,26 +1311,26 @@ export default function CalendarPage() {
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, startDate: e.target.value }))
                         }
-                        className="text-sm sm:text-base"
+                        className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                       />
                       {selectedAsset && selectedAsset.section === 'residences' && (
-                        <p className="text-xs text-muted mt-1">
+                        <p className="text-xs text-gray-500">
                           {language === 'es' ? 'Check-in:' : 'Check-in:'} {selectedAsset.details?.checkInTime || '15:00'}
                         </p>
                       )}
                       {selectedAsset && selectedAsset.section === 'watercraft' && (
-                        <p className="text-xs text-muted mt-1">
+                        <p className="text-xs text-gray-500">
                           {language === 'es' ? 'Desde las 12:00 AM' : 'From 12:00 AM'}
                         </p>
                       )}
                     </div>
-                    <div>
-                      <Label className="text-sm">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-300">
                         {selectedAsset?.section === 'residences' 
-                          ? (language === 'es' ? 'Fecha de Salida *' : 'Departure Date *')
+                          ? (language === 'es' ? 'Fecha de Salida' : 'Departure Date')
                           : selectedAsset?.section === 'watercraft'
-                          ? (language === 'es' ? 'Fecha de Regreso *' : 'Return Date *')
-                          : (language === 'es' ? 'Fecha de Fin' : 'End Date')}
+                          ? (language === 'es' ? 'Fecha de Regreso' : 'Return Date')
+                          : (language === 'es' ? 'Fecha de Fin' : 'End Date')} <span className="text-gold-500">*</span>
                       </Label>
                       <Input
                         type="date"
@@ -1324,15 +1339,15 @@ export default function CalendarPage() {
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, endDate: e.target.value }))
                         }
-                        className="text-sm sm:text-base"
+                        className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                       />
                       {selectedAsset && selectedAsset.section === 'residences' && (
-                        <p className="text-xs text-muted mt-1">
+                        <p className="text-xs text-gray-500">
                           Check-out: {selectedAsset.details?.checkOutTime || '11:00'}
                         </p>
                       )}
                       {selectedAsset && selectedAsset.section === 'watercraft' && (
-                        <p className="text-xs text-muted mt-1">
+                        <p className="text-xs text-gray-500">
                           {language === 'es' ? 'Hasta las 11:59 PM' : 'Until 11:59 PM'}
                         </p>
                       )}
@@ -1341,20 +1356,22 @@ export default function CalendarPage() {
 
                   {/* Conflict Warning */}
                   {conflicts.length > 0 && (
-                    <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20">
                       <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                          <AlertCircle className="w-4 h-4 text-amber-400" />
+                        </div>
                         <div>
                           <p className="text-sm font-medium text-amber-400">{language === 'es' ? 'Conflicto de Horario' : 'Scheduling Conflict'}</p>
-                          <p className="text-xs text-amber-400/80 mt-1">
+                          <p className="text-xs text-amber-400/70 mt-1">
                             {language === 'es' 
                               ? `Este activo tiene ${conflicts.length} reserva${conflicts.length > 1 ? 's' : ''} existente${conflicts.length > 1 ? 's' : ''} durante este tiempo:`
                               : `This asset has ${conflicts.length} existing booking${conflicts.length > 1 ? 's' : ''} during this time:`}
                           </p>
                           <ul className="mt-2 space-y-1">
                             {conflicts.map((c) => (
-                              <li key={c.id} className="text-xs text-amber-400/70">
-                                • {formatDate(new Date(c.start_datetime))} - {t(`bookings.status.${c.status}`)}
+                              <li key={c.id} className="text-xs text-amber-400/60">
+                                {formatDate(new Date(c.start_datetime))} - {t(`bookings.status.${c.status}`)}
                               </li>
                             ))}
                           </ul>
@@ -1366,8 +1383,8 @@ export default function CalendarPage() {
                   {/* Time Selection (for aviation) */}
                   {selectedAsset && ['planes', 'helicopters'].includes(selectedAsset.section) && (
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>{language === 'es' ? 'Hora de Salida' : 'Departure Time'}</Label>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Hora de Salida' : 'Departure Time'}</Label>
                         <Input
                           type="time"
                           step="900"
@@ -1375,11 +1392,12 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))
                           }
+                          className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                         />
-                        <p className="text-xs text-muted mt-1">{language === 'es' ? 'Intervalos de 15 minutos' : '15-minute intervals'}</p>
+                        <p className="text-xs text-gray-500">{language === 'es' ? 'Intervalos de 15 minutos' : '15-minute intervals'}</p>
                       </div>
-                      <div>
-                        <Label>{language === 'es' ? 'Hora de Llegada (est.)' : 'Arrival Time (est.)'}</Label>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Hora de Llegada (est.)' : 'Arrival Time (est.)'}</Label>
                         <Input
                           type="time"
                           step="900"
@@ -1387,6 +1405,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))
                           }
+                          className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                         />
                       </div>
                     </div>
@@ -1394,8 +1413,8 @@ export default function CalendarPage() {
 
                   {/* Guest Count (for residences/watercraft) */}
                   {selectedAsset && ['residences', 'watercraft'].includes(selectedAsset.section) && (
-                    <div>
-                      <Label>{language === 'es' ? 'Número de Invitados' : 'Number of Guests'}</Label>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Número de Invitados' : 'Number of Guests'}</Label>
                       <Input
                         type="number"
                         placeholder={language === 'es' ? 'Ej: 4' : 'e.g., 4'}
@@ -1403,13 +1422,14 @@ export default function CalendarPage() {
                         onChange={(e) =>
                           setBookingForm((prev) => ({ ...prev, guestCount: e.target.value }))
                         }
+                        className="bg-navy-900 border-navy-700 focus:border-gold-500 text-sm"
                       />
                     </div>
                   )}
 
                   {/* Notes */}
-                  <div>
-                    <Label>{language === 'es' ? 'Notas (opcional)' : 'Notes (optional)'}</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-300">{language === 'es' ? 'Notas' : 'Notes'} <span className="text-gray-500 font-normal">({language === 'es' ? 'opcional' : 'optional'})</span></Label>
                     <textarea
                       rows={3}
                       placeholder={language === 'es' ? 'Agregar solicitudes especiales o notas...' : 'Add any special requests or notes...'}
@@ -1417,21 +1437,21 @@ export default function CalendarPage() {
                       onChange={(e) =>
                         setBookingForm((prev) => ({ ...prev, notes: e.target.value }))
                       }
-                      className="w-full px-4 py-3 bg-surface border border-border rounded-lg text-white placeholder:text-muted focus:outline-none focus:border-gold-500 resize-none"
+                      className="w-full px-4 py-3 bg-navy-900 border border-navy-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500/20 resize-none text-sm transition-colors"
                     />
                   </div>
 
                   {/* Submit */}
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex gap-3 pt-2">
                     <Button
                       variant="secondary"
-                      className="flex-1"
+                      className="flex-1 bg-navy-700 hover:bg-navy-600 border-navy-600"
                       onClick={() => setShowBookingModal(false)}
                     >
                       {t('common.cancel')}
                     </Button>
                     <Button
-                      className="flex-1"
+                      className="flex-1 bg-gold-500 hover:bg-gold-400 text-navy-950"
                       onClick={handleSubmitBooking}
                       disabled={
                         !bookingForm.assetId || 
@@ -1447,7 +1467,7 @@ export default function CalendarPage() {
                           {language === 'es' ? 'Creando...' : 'Creating...'}
                         </>
                       ) : conflicts.length > 0 ? (
-                        language === 'es' ? 'No se puede Reservar - Conflicto' : 'Cannot Book - Conflict'
+                        language === 'es' ? 'No se puede Reservar' : 'Cannot Book'
                       ) : (
                         language === 'es' ? 'Crear Reserva' : 'Create Booking'
                       )}

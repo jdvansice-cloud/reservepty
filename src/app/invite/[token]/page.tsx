@@ -51,6 +51,7 @@ function InviteContent() {
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [emailPending, setEmailPending] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ email: string } | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   
@@ -228,12 +229,8 @@ function InviteContent() {
 
       // Check if email confirmation is required
       if (signUpData.user && !signUpData.session) {
-        // Email confirmation required
-        toast({
-          title: 'Check your email',
-          description: 'Please verify your email to complete registration.',
-        });
-        setSuccess(true);
+        // Email confirmation required - show email pending screen
+        setEmailPending(true);
         return;
       }
 
@@ -374,7 +371,35 @@ function InviteContent() {
     );
   }
 
-  // Show success
+  // Show email pending - waiting for confirmation
+  if (emailPending) {
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full bg-navy-800 border-navy-700">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-gold-500/10 mx-auto flex items-center justify-center mb-6">
+              <Mail className="w-8 h-8 text-gold-400" />
+            </div>
+            <h1 className="text-xl font-semibold text-white mb-2">Check Your Email</h1>
+            <p className="text-gray-400 mb-4">
+              We&apos;ve sent a confirmation link to
+            </p>
+            <p className="text-white font-medium mb-6">{invitation?.email}</p>
+            <div className="bg-navy-900/50 rounded-lg p-4 mb-6">
+              <p className="text-sm text-gray-400">
+                Click the link in the email to verify your account and join <span className="text-gold-400">{getOrgName()}</span>.
+              </p>
+            </div>
+            <p className="text-xs text-gray-500">
+              Didn&apos;t receive the email? Check your spam folder.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show success - invitation accepted
   if (success) {
     return (
       <div className="min-h-screen bg-navy-950 flex items-center justify-center p-4">

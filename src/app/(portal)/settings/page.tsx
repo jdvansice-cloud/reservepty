@@ -73,6 +73,7 @@ interface Member {
     email: string;
     first_name: string | null;
     last_name: string | null;
+    phone: string | null;
     avatar_url: string | null;
   };
   tier?: {
@@ -110,6 +111,18 @@ export default function SettingsPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'member', tierId: '' });
   const [isInviting, setIsInviting] = useState(false);
+  
+  // Member editing state
+  const [showMemberEditModal, setShowMemberEditModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [memberEditForm, setMemberEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    role: 'member',
+    tierId: '',
+  });
+  const [isSavingMember, setIsSavingMember] = useState(false);
   
   // Pending invitations state
   const [pendingInvitations, setPendingInvitations] = useState<{
@@ -1138,6 +1151,131 @@ export default function SettingsPage() {
     }
   };
 
+  // Check if current user can edit a member
+  const canEditMember = (member: Member) => {
+    if (!membership) return false;
+    // Owner can edit everyone
+    if (membership.role === 'owner') return true;
+    // Admin can edit everyone except owner
+    if (membership.role === 'admin' && member.role !== 'owner') return true;
+    return false;
+  };
+
+  // Check if current user can change role of a member
+  const canChangeRole = (member: Member) => {
+    if (!membership) return false;
+    // Only owner can change roles
+    if (membership.role === 'owner') return true;
+    // Admin can change roles of non-owners
+    if (membership.role === 'admin' && member.role !== 'owner') return true;
+    return false;
+  };
+
+  const openMemberEditModal = (member: Member) => {
+    setEditingMember(member);
+    setMemberEditForm({
+      firstName: member.profile?.first_name || '',
+      lastName: member.profile?.last_name || '',
+      phone: member.profile?.phone || '',
+      role: member.role,
+      tierId: member.tier_id || '',
+    });
+    setShowMemberEditModal(true);
+  };
+
+  const handleSaveMember = async () => {
+    if (!editingMember || !session?.access_token || !organization?.id) return;
+
+    setIsSavingMember(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      // Update profile
+      const profileResponse = await fetch(
+        `${baseUrl}/rest/v1/profiles?id=eq.${editingMember.user_id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            first_name: memberEditForm.firstName.trim() || null,
+            last_name: memberEditForm.lastName.trim() || null,
+            phone: memberEditForm.phone.trim() || null,
+          }),
+        }
+      );
+
+      if (!profileResponse.ok) {
+        const errorText = await profileResponse.text();
+        throw new Error(`Failed to update profile: ${errorText}`);
+      }
+
+      // Update organization membership (role and tier)
+      const memberResponse = await fetch(
+        `${baseUrl}/rest/v1/organization_members?id=eq.${editingMember.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': apiKey!,
+            'Authorization': `Bearer ${session.access_token}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            role: memberEditForm.role,
+            tier_id: memberEditForm.tierId || null,
+          }),
+        }
+      );
+
+      if (!memberResponse.ok) {
+        const errorText = await memberResponse.text();
+        throw new Error(`Failed to update membership: ${errorText}`);
+      }
+
+      // Update local state
+      setMembers(members.map(m => {
+        if (m.id === editingMember.id) {
+          return {
+            ...m,
+            role: memberEditForm.role,
+            tier_id: memberEditForm.tierId || null,
+            tier: memberEditForm.tierId ? tiers.find(t => t.id === memberEditForm.tierId) : undefined,
+            profile: m.profile ? {
+              ...m.profile,
+              first_name: memberEditForm.firstName.trim() || null,
+              last_name: memberEditForm.lastName.trim() || null,
+              phone: memberEditForm.phone.trim() || null,
+            } : undefined,
+          };
+        }
+        return m;
+      }));
+
+      toast({
+        title: language === 'es' ? 'Miembro actualizado' : 'Member updated',
+        description: language === 'es' ? 'Los cambios han sido guardados' : 'Changes have been saved',
+      });
+
+      setShowMemberEditModal(false);
+      setEditingMember(null);
+    } catch (error: any) {
+      console.error('Error saving member:', error);
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'error',
+      });
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
   const openTierModal = (tier?: Tier) => {
     if (tier) {
       setEditingTier(tier);
@@ -1588,7 +1726,7 @@ export default function SettingsPage() {
                           <p className="text-sm text-muted">{member.profile?.email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         {member.tier && (
                           <span
                             className="text-xs px-2 py-1 rounded-full border"
@@ -1605,10 +1743,20 @@ export default function SettingsPage() {
                           {member.role === 'owner' && <Crown className="w-3 h-3 inline mr-1" />}
                           {member.role}
                         </span>
+                        {canEditMember(member) && (
+                          <button
+                            onClick={() => openMemberEditModal(member)}
+                            className="p-1.5 rounded hover:bg-gold-500/20 text-muted hover:text-gold-400 transition-colors"
+                            title={language === 'es' ? 'Editar miembro' : 'Edit member'}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
                         {member.role !== 'owner' && member.user_id !== user?.id && (
                           <button
                             onClick={() => handleRemoveMember(member.id, member.profile?.email || '')}
-                            className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400"
+                            className="p-1.5 rounded hover:bg-red-500/20 text-muted hover:text-red-400 transition-colors"
+                            title={language === 'es' ? 'Eliminar' : 'Remove'}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -2758,6 +2906,123 @@ export default function SettingsPage() {
                   </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Member Edit Modal */}
+      {showMemberEditModal && editingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowMemberEditModal(false)} />
+          <Card className="relative max-w-md w-full animate-fade-up">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gold-500" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-display">{language === 'es' ? 'Editar Miembro' : 'Edit Member'}</CardTitle>
+                  <p className="text-sm text-muted">{editingMember.profile?.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowMemberEditModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Profile Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>{language === 'es' ? 'Nombre' : 'First Name'}</Label>
+                  <Input
+                    placeholder={language === 'es' ? 'Juan' : 'John'}
+                    value={memberEditForm.firstName}
+                    onChange={(e) => setMemberEditForm({ ...memberEditForm, firstName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>{language === 'es' ? 'Apellido' : 'Last Name'}</Label>
+                  <Input
+                    placeholder={language === 'es' ? 'Pérez' : 'Doe'}
+                    value={memberEditForm.lastName}
+                    onChange={(e) => setMemberEditForm({ ...memberEditForm, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>{language === 'es' ? 'Teléfono' : 'Phone'}</Label>
+                <Input
+                  type="tel"
+                  placeholder="+507 6000-0000"
+                  value={memberEditForm.phone}
+                  onChange={(e) => setMemberEditForm({ ...memberEditForm, phone: e.target.value })}
+                />
+              </div>
+
+              {/* Role Selection - Only if can change role */}
+              {canChangeRole(editingMember) && editingMember.role !== 'owner' && (
+                <div>
+                  <Label>{language === 'es' ? 'Rol' : 'Role'}</Label>
+                  <select
+                    value={memberEditForm.role}
+                    onChange={(e) => setMemberEditForm({ ...memberEditForm, role: e.target.value })}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
+                  >
+                    <option value="viewer">{t('members.role.viewer')}</option>
+                    <option value="member">{t('members.role.member')}</option>
+                    <option value="manager">{t('members.role.manager')}</option>
+                    <option value="admin">{t('members.role.admin')}</option>
+                  </select>
+                  <p className="text-xs text-muted mt-1">
+                    {language === 'es' ? 'El rol determina los permisos del miembro' : 'Role determines the member\'s permissions'}
+                  </p>
+                </div>
+              )}
+
+              {/* Owner role is not editable */}
+              {editingMember.role === 'owner' && (
+                <div className="p-3 bg-gold-500/10 border border-gold-500/20 rounded-lg">
+                  <div className="flex items-center gap-2 text-gold-400">
+                    <Crown className="w-4 h-4" />
+                    <span className="text-sm font-medium">{language === 'es' ? 'Propietario' : 'Owner'}</span>
+                  </div>
+                  <p className="text-xs text-gold-400/70 mt-1">
+                    {language === 'es' ? 'El rol de propietario no se puede cambiar' : 'Owner role cannot be changed'}
+                  </p>
+                </div>
+              )}
+
+              {/* Tier Selection */}
+              {tiers.length > 0 && (
+                <div>
+                  <Label>{language === 'es' ? 'Nivel de Reservas' : 'Booking Tier'}</Label>
+                  <select
+                    value={memberEditForm.tierId}
+                    onChange={(e) => setMemberEditForm({ ...memberEditForm, tierId: e.target.value })}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
+                  >
+                    <option value="">{language === 'es' ? 'Sin nivel asignado' : 'No tier assigned'}</option>
+                    {tiers.map((tier) => (
+                      <option key={tier.id} value={tier.id}>{tier.name} (Priority {tier.priority})</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted mt-1">
+                    {language === 'es' ? 'El nivel determina la prioridad de reservas' : 'Tier determines booking priority'}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button variant="secondary" className="flex-1" onClick={() => setShowMemberEditModal(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button className="flex-1" onClick={handleSaveMember} disabled={isSavingMember}>
+                  {isSavingMember ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  {language === 'es' ? 'Guardar Cambios' : 'Save Changes'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
