@@ -199,6 +199,44 @@ export default function SettingsPage() {
     code: '', name: '', city: '', country: 'Panama', latitude: '', longitude: ''
   });
 
+  // Assets management state
+  const [settingsAssets, setSettingsAssets] = useState<any[]>([]);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [showAssetModal, setShowAssetModal] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<any>(null);
+  const [assetForm, setAssetForm] = useState({
+    name: '',
+    section: 'planes' as string,
+    description: '',
+    primaryPhotoUrl: '',
+    isActive: true,
+    // Details vary by section
+    manufacturer: '',
+    model: '',
+    year: '',
+    tailNumber: '',
+    capacity: '',
+    cruiseSpeed: '',
+    range: '',
+    homeAirport: '',
+    turnaroundMinutes: '60',
+    // Residence specific
+    address: '',
+    city: '',
+    maxGuests: '',
+    bedrooms: '',
+    bathrooms: '',
+    checkInTime: '15:00',
+    checkOutTime: '11:00',
+    // Watercraft specific
+    length: '',
+    beam: '',
+    draft: '',
+    homePort: '',
+    hullType: '',
+    engineType: '',
+  });
+
   // Organization form
   const [orgForm, setOrgForm] = useState({
     legalName: organization?.legal_name || '',
@@ -212,20 +250,62 @@ export default function SettingsPage() {
   const isAdmin = membership?.role === 'owner' || membership?.role === 'admin';
 
   // Build tabs - Settings page is admin only, Profile is now in user dropdown
-  const tabs = [
-    { id: 'organization', label: t('settings.organization'), icon: Building2 },
-    { id: 'billing', label: t('settings.billing'), icon: CreditCard },
-    { id: 'members', label: t('settings.members'), icon: Users },
-    { id: 'tiers', label: t('settings.tiers'), icon: Layers },
-    { id: 'rules', label: t('settings.rules'), icon: Shield },
-    { id: 'holidays', label: t('settings.holidays'), icon: CalendarDays },
-    { id: 'locations', label: t('settings.locations'), icon: MapPin },
-    { id: 'ports', label: t('settings.ports'), icon: Anchor },
-    { id: 'approvals', label: t('settings.approvalsConfig'), icon: ShieldCheck },
-    ...(membership?.role === 'owner' ? [
-      { id: 'smtp', label: t('settings.smtp'), icon: Server },
-    ] : []),
+  // Tab groups for better organization
+  const tabGroups = [
+    {
+      id: 'general',
+      label: language === 'es' ? 'General' : 'General',
+      tabs: [
+        { id: 'organization', label: t('settings.organization'), icon: Building2 },
+        { id: 'billing', label: t('settings.billing'), icon: CreditCard },
+      ]
+    },
+    {
+      id: 'team',
+      label: language === 'es' ? 'Equipo' : 'Team',
+      tabs: [
+        { id: 'members', label: t('settings.members'), icon: Users },
+        { id: 'tiers', label: t('settings.tiers'), icon: Layers },
+      ]
+    },
+    {
+      id: 'assets',
+      label: language === 'es' ? 'Activos' : 'Assets',
+      tabs: [
+        { id: 'assets', label: language === 'es' ? 'Gestionar Activos' : 'Manage Assets', icon: Plane },
+      ]
+    },
+    {
+      id: 'booking',
+      label: language === 'es' ? 'Reservas' : 'Booking',
+      tabs: [
+        { id: 'rules', label: t('settings.rules'), icon: Shield },
+        { id: 'holidays', label: t('settings.holidays'), icon: CalendarDays },
+        { id: 'approvals', label: t('settings.approvalsConfig'), icon: ShieldCheck },
+      ]
+    },
+    {
+      id: 'directories',
+      label: language === 'es' ? 'Directorios' : 'Directories',
+      tabs: [
+        { id: 'locations', label: t('settings.locations'), icon: MapPin },
+        { id: 'ports', label: t('settings.ports'), icon: Anchor },
+      ]
+    },
+    ...(membership?.role === 'owner' ? [{
+      id: 'advanced',
+      label: language === 'es' ? 'Avanzado' : 'Advanced',
+      tabs: [
+        { id: 'smtp', label: t('settings.smtp'), icon: Server },
+      ]
+    }] : []),
   ];
+  
+  // Flat list for backwards compatibility
+  const tabs = tabGroups.flatMap(group => group.tabs);
+  
+  // Get current group from active tab
+  const currentGroup = tabGroups.find(group => group.tabs.some(tab => tab.id === activeTab));
 
   // Fetch members when tab is active
   useEffect(() => {
@@ -290,6 +370,13 @@ export default function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'ports' && organization?.id && session?.access_token) {
       fetchPorts();
+    }
+  }, [activeTab, organization?.id, session?.access_token]);
+
+  // Fetch assets when tab is active
+  useEffect(() => {
+    if (activeTab === 'assets' && organization?.id && session?.access_token) {
+      fetchSettingsAssets();
     }
   }, [activeTab, organization?.id, session?.access_token]);
 
@@ -606,6 +693,162 @@ export default function SettingsPage() {
       console.error('Error fetching ports:', error);
     } finally {
       setIsLoadingPorts(false);
+    }
+  };
+
+  // Fetch Assets for Settings
+  const fetchSettingsAssets = async () => {
+    if (!organization?.id || !session?.access_token) return;
+    setIsLoadingAssets(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const res = await fetch(
+        `${baseUrl}/rest/v1/assets?organization_id=eq.${organization.id}&order=created_at.desc`,
+        { headers: { 'apikey': apiKey!, 'Authorization': `Bearer ${session.access_token}` } }
+      );
+      if (res.ok) setSettingsAssets(await res.json());
+    } catch (error) {
+      console.error('Error fetching assets:', error);
+    } finally {
+      setIsLoadingAssets(false);
+    }
+  };
+
+  // Save Asset
+  const handleSaveAsset = async () => {
+    if (!organization?.id || !session?.access_token || !assetForm.name) return;
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const headers = { 'Content-Type': 'application/json', 'apikey': apiKey!, 'Authorization': `Bearer ${session.access_token}` };
+
+      // Build details based on section
+      let details: any = {};
+      if (assetForm.section === 'planes' || assetForm.section === 'helicopters') {
+        details = {
+          manufacturer: assetForm.manufacturer || null,
+          model: assetForm.model || null,
+          year: assetForm.year ? parseInt(assetForm.year) : null,
+          tailNumber: assetForm.tailNumber || null,
+          passengerCapacity: assetForm.capacity ? parseInt(assetForm.capacity) : null,
+          cruiseSpeed: assetForm.cruiseSpeed ? parseInt(assetForm.cruiseSpeed) : null,
+          range: assetForm.range ? parseInt(assetForm.range) : null,
+          homeAirport: assetForm.homeAirport || null,
+          turnaroundMinutes: assetForm.turnaroundMinutes ? parseInt(assetForm.turnaroundMinutes) : 60,
+        };
+      } else if (assetForm.section === 'residences') {
+        details = {
+          address: assetForm.address || null,
+          city: assetForm.city || null,
+          maxGuests: assetForm.maxGuests ? parseInt(assetForm.maxGuests) : null,
+          bedrooms: assetForm.bedrooms ? parseInt(assetForm.bedrooms) : null,
+          bathrooms: assetForm.bathrooms ? parseInt(assetForm.bathrooms) : null,
+          checkInTime: assetForm.checkInTime || '15:00',
+          checkOutTime: assetForm.checkOutTime || '11:00',
+        };
+      } else if (assetForm.section === 'watercraft') {
+        details = {
+          manufacturer: assetForm.manufacturer || null,
+          model: assetForm.model || null,
+          year: assetForm.year ? parseInt(assetForm.year) : null,
+          length: assetForm.length ? parseFloat(assetForm.length) : null,
+          beam: assetForm.beam ? parseFloat(assetForm.beam) : null,
+          draft: assetForm.draft ? parseFloat(assetForm.draft) : null,
+          maxGuests: assetForm.capacity ? parseInt(assetForm.capacity) : null,
+          homePort: assetForm.homePort || null,
+          hullType: assetForm.hullType || null,
+          engineType: assetForm.engineType || null,
+        };
+      }
+
+      const data = {
+        organization_id: organization.id,
+        name: assetForm.name,
+        section: assetForm.section,
+        description: assetForm.description || null,
+        primary_photo_url: assetForm.primaryPhotoUrl || null,
+        is_active: assetForm.isActive,
+        details,
+      };
+
+      if (editingAsset) {
+        await fetch(`${baseUrl}/rest/v1/assets?id=eq.${editingAsset.id}`, { method: 'PATCH', headers, body: JSON.stringify(data) });
+      } else {
+        await fetch(`${baseUrl}/rest/v1/assets`, { method: 'POST', headers, body: JSON.stringify(data) });
+      }
+
+      toast({ title: t('common.success'), description: editingAsset ? (language === 'es' ? 'Activo actualizado' : 'Asset updated') : (language === 'es' ? 'Activo creado' : 'Asset created') });
+      setShowAssetModal(false);
+      setEditingAsset(null);
+      resetAssetForm();
+      fetchSettingsAssets();
+    } catch (error) {
+      console.error('Error saving asset:', error);
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo guardar' : 'Could not save', variant: 'error' });
+    }
+  };
+
+  const resetAssetForm = () => {
+    setAssetForm({
+      name: '', section: 'planes', description: '', primaryPhotoUrl: '', isActive: true,
+      manufacturer: '', model: '', year: '', tailNumber: '', capacity: '', cruiseSpeed: '',
+      range: '', homeAirport: '', turnaroundMinutes: '60', address: '', city: '', maxGuests: '',
+      bedrooms: '', bathrooms: '', checkInTime: '15:00', checkOutTime: '11:00',
+      length: '', beam: '', draft: '', homePort: '', hullType: '', engineType: '',
+    });
+  };
+
+  const openEditAsset = (asset: any) => {
+    setEditingAsset(asset);
+    const d = asset.details || {};
+    setAssetForm({
+      name: asset.name || '',
+      section: asset.section || 'planes',
+      description: asset.description || '',
+      primaryPhotoUrl: asset.primary_photo_url || '',
+      isActive: asset.is_active !== false,
+      manufacturer: d.manufacturer || '',
+      model: d.model || '',
+      year: d.year?.toString() || '',
+      tailNumber: d.tailNumber || '',
+      capacity: (d.passengerCapacity || d.maxGuests)?.toString() || '',
+      cruiseSpeed: d.cruiseSpeed?.toString() || '',
+      range: d.range?.toString() || '',
+      homeAirport: d.homeAirport || '',
+      turnaroundMinutes: d.turnaroundMinutes?.toString() || '60',
+      address: d.address || '',
+      city: d.city || '',
+      maxGuests: d.maxGuests?.toString() || '',
+      bedrooms: d.bedrooms?.toString() || '',
+      bathrooms: d.bathrooms?.toString() || '',
+      checkInTime: d.checkInTime || '15:00',
+      checkOutTime: d.checkOutTime || '11:00',
+      length: d.length?.toString() || '',
+      beam: d.beam?.toString() || '',
+      draft: d.draft?.toString() || '',
+      homePort: d.homePort || '',
+      hullType: d.hullType || '',
+      engineType: d.engineType || '',
+    });
+    setShowAssetModal(true);
+  };
+
+  const handleDeleteAsset = async (id: string, name: string) => {
+    if (!confirm(language === 'es' ? `¿Eliminar "${name}"? Esta acción no se puede deshacer.` : `Delete "${name}"? This action cannot be undone.`)) return;
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const apiKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      // Soft delete by setting deleted_at
+      await fetch(`${baseUrl}/rest/v1/assets?id=eq.${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'apikey': apiKey!, 'Authorization': `Bearer ${session!.access_token}` },
+        body: JSON.stringify({ deleted_at: new Date().toISOString(), is_active: false }),
+      });
+      toast({ title: language === 'es' ? 'Activo eliminado' : 'Asset deleted' });
+      fetchSettingsAssets();
+    } catch (error) {
+      toast({ title: t('common.error'), description: language === 'es' ? 'No se pudo eliminar' : 'Could not delete', variant: 'error' });
     }
   };
 
@@ -1083,25 +1326,50 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Tabs - Horizontally Scrollable */}
-      <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 tabs-scroll">
-        <div className="flex items-center gap-1 p-1 bg-surface rounded-lg min-w-max">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
-                activeTab === tab.id
-                  ? 'bg-gold-500 text-navy-950'
-                  : 'text-muted hover:text-white'
-              )}
-            >
-              <tab.icon className="w-4 h-4 shrink-0" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Tab Groups - Two-tier navigation */}
+      <div className="space-y-3">
+        {/* Top level: Tab Groups */}
+        <div className="overflow-x-auto pb-1 -mx-4 px-4 md:mx-0 md:px-0 tabs-scroll">
+          <div className="flex items-center gap-2">
+            {tabGroups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => setActiveTab(group.tabs[0].id)}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap border',
+                  currentGroup?.id === group.id
+                    ? 'bg-gold-500/10 text-gold-500 border-gold-500/30'
+                    : 'text-muted hover:text-white border-transparent hover:border-border'
+                )}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
         </div>
+        
+        {/* Second level: Tabs within current group */}
+        {currentGroup && currentGroup.tabs.length > 1 && (
+          <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 tabs-scroll">
+            <div className="flex items-center gap-1 p-1 bg-surface rounded-lg w-fit">
+              {currentGroup.tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap',
+                    activeTab === tab.id
+                      ? 'bg-gold-500 text-navy-950'
+                      : 'text-muted hover:text-white'
+                  )}
+                >
+                  <tab.icon className="w-4 h-4 shrink-0" />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Organization Tab */}
@@ -2284,6 +2552,106 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Assets Management Tab */}
+      {activeTab === 'assets' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>{language === 'es' ? 'Gestionar Activos' : 'Manage Assets'}</CardTitle>
+                <CardDescription>{language === 'es' ? 'Crea, edita y administra los activos de tu organización' : 'Create, edit and manage your organization assets'}</CardDescription>
+              </div>
+              <Button onClick={() => { setEditingAsset(null); resetAssetForm(); setShowAssetModal(true); }}>
+                <Plus className="w-4 h-4 mr-2" />
+                {language === 'es' ? 'Nuevo Activo' : 'New Asset'}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isLoadingAssets ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
+                </div>
+              ) : settingsAssets.filter(a => !a.deleted_at).length === 0 ? (
+                <div className="text-center py-12">
+                  <Plane className="w-12 h-12 text-muted mx-auto mb-4" />
+                  <p className="text-muted">{language === 'es' ? 'No hay activos registrados' : 'No assets registered'}</p>
+                  <p className="text-sm text-subtle mt-1">{language === 'es' ? 'Agrega tu primer activo para comenzar' : 'Add your first asset to get started'}</p>
+                  <Button className="mt-4" onClick={() => { setEditingAsset(null); resetAssetForm(); setShowAssetModal(true); }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    {language === 'es' ? 'Agregar Activo' : 'Add Asset'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted">{language === 'es' ? 'Nombre' : 'Name'}</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted">{language === 'es' ? 'Sección' : 'Section'}</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-muted">{language === 'es' ? 'Estado' : 'Status'}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-muted">{language === 'es' ? 'Acciones' : 'Actions'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {settingsAssets.filter(a => !a.deleted_at).map((asset) => {
+                        const SectionIcon = SECTION_ICONS[asset.section] || Plane;
+                        return (
+                          <tr key={asset.id} className="border-b border-border/50 hover:bg-surface/50">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                {asset.primary_photo_url ? (
+                                  <img src={asset.primary_photo_url} alt={asset.name} className="w-10 h-10 rounded-lg object-cover" />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center">
+                                    <SectionIcon className="w-5 h-5 text-muted" />
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-medium text-white">{asset.name}</p>
+                                  {asset.details?.manufacturer && asset.details?.model && (
+                                    <p className="text-xs text-muted">{asset.details.manufacturer} {asset.details.model}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gold-500/10 text-gold-500">
+                                <SectionIcon className="w-3.5 h-3.5" />
+                                {t(`assets.section.${asset.section}`)}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className={cn(
+                                "px-2.5 py-1 rounded-full text-xs font-medium border",
+                                asset.is_active 
+                                  ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
+                                  : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                              )}>
+                                {asset.is_active ? (language === 'es' ? 'Activo' : 'Active') : (language === 'es' ? 'Inactivo' : 'Inactive')}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" onClick={() => openEditAsset(asset)}>
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteAsset(asset.id, asset.name)}>
+                                  <Trash2 className="w-4 h-4 text-red-400" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Invite Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -2797,6 +3165,335 @@ export default function SettingsPage() {
                 <Button className="flex-1" onClick={handleSavePort} disabled={!portForm.name}>
                   <Save className="w-4 h-4 mr-2" />
                   {editingPort ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Asset Modal */}
+      {showAssetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowAssetModal(false)} />
+          <Card className="relative max-w-2xl w-full animate-fade-up my-8">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-xl font-display">{editingAsset ? (language === 'es' ? 'Editar Activo' : 'Edit Asset') : (language === 'es' ? 'Nuevo Activo' : 'New Asset')}</CardTitle>
+              <button onClick={() => setShowAssetModal(false)} className="p-2 rounded-lg hover:bg-surface text-muted hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label>{language === 'es' ? 'Nombre del Activo *' : 'Asset Name *'}</Label>
+                  <Input
+                    value={assetForm.name}
+                    onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
+                    placeholder={language === 'es' ? 'Ej: Gulfstream G650' : 'e.g. Gulfstream G650'}
+                  />
+                </div>
+                <div>
+                  <Label>{language === 'es' ? 'Sección *' : 'Section *'}</Label>
+                  <select
+                    value={assetForm.section}
+                    onChange={(e) => setAssetForm({ ...assetForm, section: e.target.value })}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
+                    disabled={!!editingAsset}
+                  >
+                    <option value="planes">{t('assets.section.planes')}</option>
+                    <option value="helicopters">{t('assets.section.helicopters')}</option>
+                    <option value="residences">{t('assets.section.residences')}</option>
+                    <option value="watercraft">{t('assets.section.watercraft')}</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>{language === 'es' ? 'Estado' : 'Status'}</Label>
+                  <select
+                    value={assetForm.isActive ? 'active' : 'inactive'}
+                    onChange={(e) => setAssetForm({ ...assetForm, isActive: e.target.value === 'active' })}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white"
+                  >
+                    <option value="active">{language === 'es' ? 'Activo' : 'Active'}</option>
+                    <option value="inactive">{language === 'es' ? 'Inactivo' : 'Inactive'}</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <Label>{language === 'es' ? 'Descripción' : 'Description'}</Label>
+                  <textarea
+                    value={assetForm.description}
+                    onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })}
+                    placeholder={language === 'es' ? 'Descripción del activo...' : 'Asset description...'}
+                    className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white min-h-[80px]"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Label>{language === 'es' ? 'URL de Foto Principal' : 'Primary Photo URL'}</Label>
+                  <Input
+                    value={assetForm.primaryPhotoUrl}
+                    onChange={(e) => setAssetForm({ ...assetForm, primaryPhotoUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
+              {/* Section-specific fields */}
+              {(assetForm.section === 'planes' || assetForm.section === 'helicopters') && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="font-medium text-white">{language === 'es' ? 'Detalles de Aeronave' : 'Aircraft Details'}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{language === 'es' ? 'Fabricante' : 'Manufacturer'}</Label>
+                      <Input
+                        value={assetForm.manufacturer}
+                        onChange={(e) => setAssetForm({ ...assetForm, manufacturer: e.target.value })}
+                        placeholder="Gulfstream, Airbus, etc."
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Modelo' : 'Model'}</Label>
+                      <Input
+                        value={assetForm.model}
+                        onChange={(e) => setAssetForm({ ...assetForm, model: e.target.value })}
+                        placeholder="G650, H175, etc."
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Año' : 'Year'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.year}
+                        onChange={(e) => setAssetForm({ ...assetForm, year: e.target.value })}
+                        placeholder="2020"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Matrícula' : 'Tail Number'}</Label>
+                      <Input
+                        value={assetForm.tailNumber}
+                        onChange={(e) => setAssetForm({ ...assetForm, tailNumber: e.target.value.toUpperCase() })}
+                        placeholder="N123AB"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Capacidad de Pasajeros' : 'Passenger Capacity'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.capacity}
+                        onChange={(e) => setAssetForm({ ...assetForm, capacity: e.target.value })}
+                        placeholder="12"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Velocidad Crucero (kts)' : 'Cruise Speed (kts)'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.cruiseSpeed}
+                        onChange={(e) => setAssetForm({ ...assetForm, cruiseSpeed: e.target.value })}
+                        placeholder="516"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Alcance (nm)' : 'Range (nm)'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.range}
+                        onChange={(e) => setAssetForm({ ...assetForm, range: e.target.value })}
+                        placeholder="7000"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Aeropuerto Base (ICAO)' : 'Home Airport (ICAO)'}</Label>
+                      <Input
+                        value={assetForm.homeAirport}
+                        onChange={(e) => setAssetForm({ ...assetForm, homeAirport: e.target.value.toUpperCase() })}
+                        placeholder="MPTO"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Tiempo de Preparación (min)' : 'Turnaround Time (min)'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.turnaroundMinutes}
+                        onChange={(e) => setAssetForm({ ...assetForm, turnaroundMinutes: e.target.value })}
+                        placeholder="60"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {assetForm.section === 'residences' && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="font-medium text-white">{language === 'es' ? 'Detalles de Propiedad' : 'Property Details'}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label>{language === 'es' ? 'Dirección' : 'Address'}</Label>
+                      <Input
+                        value={assetForm.address}
+                        onChange={(e) => setAssetForm({ ...assetForm, address: e.target.value })}
+                        placeholder={language === 'es' ? 'Dirección completa' : 'Full address'}
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Ciudad' : 'City'}</Label>
+                      <Input
+                        value={assetForm.city}
+                        onChange={(e) => setAssetForm({ ...assetForm, city: e.target.value })}
+                        placeholder={language === 'es' ? 'Ciudad de Panamá' : 'Panama City'}
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Huéspedes Máximos' : 'Max Guests'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.maxGuests}
+                        onChange={(e) => setAssetForm({ ...assetForm, maxGuests: e.target.value })}
+                        placeholder="8"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Habitaciones' : 'Bedrooms'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.bedrooms}
+                        onChange={(e) => setAssetForm({ ...assetForm, bedrooms: e.target.value })}
+                        placeholder="4"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Baños' : 'Bathrooms'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.bathrooms}
+                        onChange={(e) => setAssetForm({ ...assetForm, bathrooms: e.target.value })}
+                        placeholder="3"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Check-in' : 'Check-in Time'}</Label>
+                      <Input
+                        type="time"
+                        value={assetForm.checkInTime}
+                        onChange={(e) => setAssetForm({ ...assetForm, checkInTime: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Check-out' : 'Check-out Time'}</Label>
+                      <Input
+                        type="time"
+                        value={assetForm.checkOutTime}
+                        onChange={(e) => setAssetForm({ ...assetForm, checkOutTime: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {assetForm.section === 'watercraft' && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h4 className="font-medium text-white">{language === 'es' ? 'Detalles de Embarcación' : 'Vessel Details'}</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>{language === 'es' ? 'Fabricante' : 'Manufacturer'}</Label>
+                      <Input
+                        value={assetForm.manufacturer}
+                        onChange={(e) => setAssetForm({ ...assetForm, manufacturer: e.target.value })}
+                        placeholder="Sunseeker, Azimut, etc."
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Modelo' : 'Model'}</Label>
+                      <Input
+                        value={assetForm.model}
+                        onChange={(e) => setAssetForm({ ...assetForm, model: e.target.value })}
+                        placeholder="Predator 68, Grande 35, etc."
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Año' : 'Year'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.year}
+                        onChange={(e) => setAssetForm({ ...assetForm, year: e.target.value })}
+                        placeholder="2022"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Capacidad de Pasajeros' : 'Passenger Capacity'}</Label>
+                      <Input
+                        type="number"
+                        value={assetForm.capacity}
+                        onChange={(e) => setAssetForm({ ...assetForm, capacity: e.target.value })}
+                        placeholder="12"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Eslora (ft)' : 'Length (ft)'}</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={assetForm.length}
+                        onChange={(e) => setAssetForm({ ...assetForm, length: e.target.value })}
+                        placeholder="68"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Manga (ft)' : 'Beam (ft)'}</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={assetForm.beam}
+                        onChange={(e) => setAssetForm({ ...assetForm, beam: e.target.value })}
+                        placeholder="17"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Calado (ft)' : 'Draft (ft)'}</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={assetForm.draft}
+                        onChange={(e) => setAssetForm({ ...assetForm, draft: e.target.value })}
+                        placeholder="5.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Puerto Base' : 'Home Port'}</Label>
+                      <Input
+                        value={assetForm.homePort}
+                        onChange={(e) => setAssetForm({ ...assetForm, homePort: e.target.value })}
+                        placeholder="Flamenco Marina"
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Tipo de Casco' : 'Hull Type'}</Label>
+                      <Input
+                        value={assetForm.hullType}
+                        onChange={(e) => setAssetForm({ ...assetForm, hullType: e.target.value })}
+                        placeholder="Fiberglass, Aluminum, etc."
+                      />
+                    </div>
+                    <div>
+                      <Label>{language === 'es' ? 'Tipo de Motor' : 'Engine Type'}</Label>
+                      <Input
+                        value={assetForm.engineType}
+                        onChange={(e) => setAssetForm({ ...assetForm, engineType: e.target.value })}
+                        placeholder="Twin Diesel, etc."
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t border-border">
+                <Button variant="secondary" className="flex-1" onClick={() => setShowAssetModal(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button className="flex-1" onClick={handleSaveAsset} disabled={!assetForm.name}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {editingAsset ? (language === 'es' ? 'Actualizar' : 'Update') : (language === 'es' ? 'Crear' : 'Create')}
                 </Button>
               </div>
             </CardContent>

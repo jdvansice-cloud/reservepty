@@ -10,7 +10,6 @@ import { cn, SECTIONS } from '@/lib/utils';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
-  Plus,
   Search,
   Filter,
   Plane,
@@ -19,7 +18,6 @@ import {
   MapPin,
   Users,
   Calendar,
-  Edit,
   Eye,
   Loader2,
   AlertCircle,
@@ -55,7 +53,7 @@ interface Asset {
 export default function AssetsPage() {
   const searchParams = useSearchParams();
   const initialSection = searchParams.get('section') || 'all';
-  const { organization, session } = useAuth();
+  const { organization, session, membership } = useAuth();
   const { t, language } = useLanguage();
   
   const [search, setSearch] = useState('');
@@ -63,6 +61,9 @@ export default function AssetsPage() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Check if user is admin
+  const isAdmin = membership?.role === 'owner' || membership?.role === 'admin';
 
   useEffect(() => {
     const fetchAssets = async () => {
@@ -150,14 +151,8 @@ export default function AssetsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white">{t('assets.title')}</h1>
-          <p className="text-muted mt-1">{t('assets.subtitle')}</p>
+          <p className="text-muted mt-1">{language === 'es' ? 'Explora y reserva activos de tu organización' : 'Browse and book assets from your organization'}</p>
         </div>
-        <Link href="/assets/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            {t('assets.addAsset')}
-          </Button>
-        </Link>
       </div>
 
       {/* Error Display */}
@@ -232,19 +227,9 @@ export default function AssetsPage() {
               {search
                 ? (language === 'es' ? `No hay activos que coincidan con "${search}".` : `No assets match "${search}". Try a different search term.`)
                 : activeSection !== 'all'
-                ? (language === 'es' ? `No hay ${t(`assets.section.${activeSection}`).toLowerCase()} agregados aún.` : `No ${t(`assets.section.${activeSection}`).toLowerCase()} added yet.`)
-                : (language === 'es' ? 'Comienza agregando tu primer activo.' : 'Get started by adding your first asset.')}
+                ? (language === 'es' ? `No hay ${t(`assets.section.${activeSection}`).toLowerCase()} disponibles aún.` : `No ${t(`assets.section.${activeSection}`).toLowerCase()} available yet.`)
+                : (language === 'es' ? 'No hay activos disponibles aún. Contacta a tu administrador.' : 'No assets available yet. Contact your administrator.')}
             </p>
-            {!search && (
-              <Link href={activeSection !== 'all' ? `/assets/new?section=${activeSection}` : '/assets/new'}>
-                <Button className="mt-6">
-                  <Plus className="w-4 h-4 mr-2" />
-                  {activeSection !== 'all' 
-                    ? (language === 'es' ? `Agregar ${t(`assets.section.${activeSection}`)}` : `Add ${t(`assets.section.${activeSection}`)}`)
-                    : (language === 'es' ? 'Agregar tu Primer Activo' : 'Add Your First Asset')}
-                </Button>
-              </Link>
-            )}
           </CardContent>
         </Card>
       ) : (
@@ -296,11 +281,6 @@ export default function AssetsPage() {
                     <Link href={`/assets/${asset.id}`}>
                       <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
                         <Eye className="w-4 h-4" />
-                      </button>
-                    </Link>
-                    <Link href={`/assets/${asset.id}/edit`}>
-                      <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
-                        <Edit className="w-4 h-4" />
                       </button>
                     </Link>
                   </div>
