@@ -26,6 +26,7 @@ import {
   X,
   Layers,
   Navigation,
+  Briefcase,
   History,
   CheckCircle2,
   User,
@@ -73,6 +74,7 @@ export default function PortalLayout({
     { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
     { name: t('nav.assets'), href: '/assets', icon: Layers },
     { name: t('nav.calendar'), href: '/calendar', icon: Calendar },
+    { name: language === 'es' ? 'Mis Viajes' : 'My Trips', href: '/my-trips', icon: Briefcase },
     { name: t('nav.history'), href: '/reservations', icon: History },
     { name: t('nav.approvals'), href: '/approvals', icon: CheckCircle2 },
   ];
@@ -81,7 +83,7 @@ export default function PortalLayout({
   const bottomNavigation = [
     { name: t('nav.assets'), href: '/assets', icon: Layers },
     { name: t('nav.calendar'), href: '/calendar', icon: Calendar },
-    { name: t('nav.history'), href: '/reservations', icon: History },
+    { name: language === 'es' ? 'Mis Viajes' : 'My Trips', href: '/my-trips', icon: Briefcase },
     { name: t('nav.profile'), href: '#profile', icon: User, action: 'profile' },
   ];
 
