@@ -151,13 +151,13 @@ function InviteContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
 
-      // Store invitation token in localStorage as backup
-      localStorage.setItem('pendingInviteToken', token);
+      // Store invitation token in cookie (persists across browser contexts)
+      document.cookie = `pendingInviteToken=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?invite=${token}`,
+          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             login_hint: invitation.email,
           },
@@ -207,9 +207,9 @@ function InviteContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
 
-      // Store invitation token in localStorage for after email verification
-      // This is needed because Supabase overwrites redirect URL params
-      localStorage.setItem('pendingInviteToken', token);
+      // Store invitation token in cookie (persists across browser contexts)
+      // Set expiry to 7 days to match invitation expiry
+      document.cookie = `pendingInviteToken=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
 
       // Sign up with email and password
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -240,7 +240,7 @@ function InviteContent() {
       // If we have a session, accept the invitation immediately
       if (signUpData.session) {
         // Clear stored token since we're handling it now
-        localStorage.removeItem('pendingInviteToken');
+        document.cookie = 'pendingInviteToken=; path=/; max-age=0';
         
         setAccessToken(signUpData.session.access_token);
         

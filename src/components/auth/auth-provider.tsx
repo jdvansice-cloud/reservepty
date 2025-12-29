@@ -247,15 +247,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchSubscription]);
 
-  // Check and accept pending invitation from localStorage
+  // Helper to get cookie value
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? match[2] : null;
+  };
+
+  // Helper to delete cookie
+  const deleteCookie = (name: string) => {
+    if (typeof document === 'undefined') return;
+    document.cookie = `${name}=; path=/; max-age=0`;
+  };
+
+  // Check and accept pending invitation from cookie
   const checkPendingInvitation = useCallback(async (userId: string, userEmail: string, accessToken: string) => {
     if (typeof window === 'undefined') return;
     
-    const pendingToken = localStorage.getItem('pendingInviteToken');
+    const pendingToken = getCookie('pendingInviteToken');
     if (!pendingToken) return;
     
     try {
-      console.log('Found pending invitation token, attempting to accept...');
+      console.log('Found pending invitation token in cookie, attempting to accept...');
       
       const response = await fetch(`/api/invitations/${pendingToken}`, {
         method: 'POST',
@@ -267,19 +280,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (response.ok) {
         console.log('Pending invitation accepted successfully');
-        // Clear the token
-        localStorage.removeItem('pendingInviteToken');
+        // Clear the cookie
+        deleteCookie('pendingInviteToken');
         // Refresh profile to get new organization membership
         await fetchProfileWithFetch(userId, accessToken);
       } else {
         const data = await response.json();
         console.error('Failed to accept pending invitation:', data.error);
         // Clear invalid token
-        localStorage.removeItem('pendingInviteToken');
+        deleteCookie('pendingInviteToken');
       }
     } catch (error) {
       console.error('Error accepting pending invitation:', error);
-      localStorage.removeItem('pendingInviteToken');
+      deleteCookie('pendingInviteToken');
     }
   }, [fetchProfileWithFetch]);
 
@@ -296,7 +309,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Fetch profile and then check for pending invitations
       fetchProfileWithFetch(cookieSession.user.id, cookieSession.accessToken).then(() => {
-        // Check for pending invitation after profile is loaded
+        // Check for pending invitation after profile is loaded (fallback if server didn't catch it)
         if (cookieSession.user.email) {
           checkPendingInvitation(cookieSession.user.id, cookieSession.user.email, cookieSession.accessToken);
         }

@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   
+  // Check for pending invitation token in cookie
+  const pendingInviteToken = cookieStore.get('pendingInviteToken')?.value;
+  
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -34,6 +38,93 @@ export async function GET(request: Request) {
       },
     }
   );
+
+  // Helper function to accept invitation using service role
+  const acceptInvitation = async (userId: string, userEmail: string) => {
+    if (!pendingInviteToken) return false;
+
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not set');
+      return false;
+    }
+
+    try {
+      const adminSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        serviceRoleKey,
+        { auth: { persistSession: false } }
+      );
+
+      // Get invitation
+      const { data: invitation, error: invError } = await adminSupabase
+        .from('invitations')
+        .select('*')
+        .eq('token', pendingInviteToken)
+        .single();
+
+      if (invError || !invitation) {
+        console.error('Invitation not found:', invError);
+        return false;
+      }
+
+      // Check if email matches
+      if (invitation.email.toLowerCase() !== userEmail.toLowerCase()) {
+        console.error('Email mismatch for invitation');
+        return false;
+      }
+
+      // Check if already accepted
+      if (invitation.accepted_at) {
+        console.log('Invitation already accepted');
+        return true; // Consider this success
+      }
+
+      // Check if expired
+      if (new Date(invitation.expires_at) < new Date()) {
+        console.log('Invitation expired');
+        return false;
+      }
+
+      // Check if already a member
+      const { data: existingMember } = await adminSupabase
+        .from('organization_members')
+        .select('id')
+        .eq('organization_id', invitation.organization_id)
+        .eq('user_id', userId)
+        .single();
+
+      if (!existingMember) {
+        // Add user to organization
+        const { error: memberError } = await adminSupabase
+          .from('organization_members')
+          .insert({
+            organization_id: invitation.organization_id,
+            user_id: userId,
+            role: invitation.role,
+            tier_id: invitation.tier_id,
+            joined_at: new Date().toISOString(),
+          });
+
+        if (memberError) {
+          console.error('Error adding member:', memberError);
+          return false;
+        }
+      }
+
+      // Mark invitation as accepted
+      await adminSupabase
+        .from('invitations')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('id', invitation.id);
+
+      console.log('Invitation accepted successfully for user:', userEmail);
+      return true;
+    } catch (err) {
+      console.error('Error accepting invitation:', err);
+      return false;
+    }
+  };
 
   // Handle email verification (confirmation link clicked)
   if (token_hash && type) {
@@ -63,9 +154,18 @@ export async function GET(request: Request) {
           last_name: data.user.user_metadata?.last_name || null,
         });
       }
+
+      // Accept pending invitation if exists
+      if (pendingInviteToken && data.user.email) {
+        const accepted = await acceptInvitation(data.user.id, data.user.email);
+        if (accepted) {
+          // Clear the cookie
+          cookieStore.delete('pendingInviteToken');
+        }
+      }
     }
 
-    // Redirect to dashboard - client-side will handle pending invitation
+    // Redirect to dashboard
     return NextResponse.redirect(`${origin}/dashboard`);
   }
 
@@ -95,7 +195,16 @@ export async function GET(request: Request) {
         });
       }
 
-      // Redirect to dashboard - client-side will handle pending invitation
+      // Accept pending invitation if exists
+      if (pendingInviteToken && data.user.email) {
+        const accepted = await acceptInvitation(data.user.id, data.user.email);
+        if (accepted) {
+          // Clear the cookie
+          cookieStore.delete('pendingInviteToken');
+        }
+      }
+
+      // Redirect to dashboard
       return NextResponse.redirect(`${origin}/dashboard`);
     }
 
