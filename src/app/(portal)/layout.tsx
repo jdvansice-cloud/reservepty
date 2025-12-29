@@ -151,13 +151,23 @@ export default function PortalLayout({
   }
 
   if (!user) {
-    return null;
+    // Show loading state while redirecting to login
+    return (
+      <div className="min-h-screen bg-navy-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gold-500/20 flex items-center justify-center animate-pulse">
+            <span className="text-gold-500 font-display text-xl font-bold">R</span>
+          </div>
+          <div className="spinner" />
+          <p className="text-muted text-sm">Redirecting to login...</p>
+        </div>
+      </div>
+    );
   }
 
   const handleSignOut = async () => {
     setSidebarOpen(false);
     await signOut();
-    router.push('/login');
   };
 
   const handleSaveProfile = async () => {

@@ -7,8 +7,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   const token_hash = searchParams.get('token_hash');
   const type = searchParams.get('type');
-  const next = searchParams.get('next') ?? '/onboarding';
-  const inviteToken = searchParams.get('invite'); // Handle invite token
+  const next = searchParams.get('next') ?? '/dashboard';
   const error_description = searchParams.get('error_description');
 
   // Handle error from Supabase
@@ -36,92 +35,6 @@ export async function GET(request: Request) {
     }
   );
 
-  // Helper function to accept invitation
-  const acceptInvitation = async (userId: string, userEmail: string, accessToken: string) => {
-    if (!inviteToken) return;
-
-    try {
-      // Use service role client for invitation acceptance
-      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (!serviceRoleKey) {
-        console.error('SUPABASE_SERVICE_ROLE_KEY not set');
-        return;
-      }
-
-      const adminSupabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        serviceRoleKey,
-        {
-          cookies: {
-            get(name: string) { return cookieStore.get(name)?.value; },
-            set(name: string, value: string, options: CookieOptions) { cookieStore.set({ name, value, ...options }); },
-            remove(name: string, options: CookieOptions) { cookieStore.delete({ name, ...options }); },
-          },
-        }
-      );
-
-      // Get invitation
-      const { data: invitation, error: invError } = await adminSupabase
-        .from('invitations')
-        .select('*, organizations(*)')
-        .eq('token', inviteToken)
-        .single();
-
-      if (invError || !invitation) {
-        console.error('Invitation not found:', invError);
-        return;
-      }
-
-      // Check if email matches
-      if (invitation.email.toLowerCase() !== userEmail.toLowerCase()) {
-        console.error('Email mismatch for invitation');
-        return;
-      }
-
-      // Check if already accepted
-      if (invitation.accepted_at) {
-        console.log('Invitation already accepted');
-        return;
-      }
-
-      // Check if expired
-      if (new Date(invitation.expires_at) < new Date()) {
-        console.log('Invitation expired');
-        return;
-      }
-
-      // Add user to organization
-      const { error: memberError } = await adminSupabase
-        .from('organization_members')
-        .insert({
-          organization_id: invitation.organization_id,
-          user_id: userId,
-          role: invitation.role,
-          tier_id: invitation.tier_id,
-        });
-
-      if (memberError) {
-        // Check if already a member
-        if (memberError.code === '23505') {
-          console.log('User already a member');
-        } else {
-          console.error('Error adding member:', memberError);
-          return;
-        }
-      }
-
-      // Mark invitation as accepted
-      await adminSupabase
-        .from('invitations')
-        .update({ accepted_at: new Date().toISOString() })
-        .eq('id', invitation.id);
-
-      console.log('Invitation accepted successfully');
-    } catch (err) {
-      console.error('Error accepting invitation:', err);
-    }
-  };
-
   // Handle email verification (confirmation link clicked)
   if (token_hash && type) {
     const { data, error } = await supabase.auth.verifyOtp({
@@ -134,7 +47,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
     }
 
-    if (data.user && data.session) {
+    if (data.user) {
       // Ensure profile exists
       const { data: existingProfile } = await supabase
         .from('profiles')
@@ -150,23 +63,17 @@ export async function GET(request: Request) {
           last_name: data.user.user_metadata?.last_name || null,
         });
       }
-
-      // Accept invitation if present
-      if (inviteToken && data.user.email) {
-        await acceptInvitation(data.user.id, data.user.email, data.session.access_token);
-        return NextResponse.redirect(`${origin}/dashboard`);
-      }
     }
 
-    // Email verified successfully
-    return NextResponse.redirect(`${origin}${next}`);
+    // Redirect to dashboard - client-side will handle pending invitation
+    return NextResponse.redirect(`${origin}/dashboard`);
   }
 
   // Handle OAuth callback (Google, etc.)
   if (code) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
-    if (!error && data.user && data.session) {
+    if (!error && data.user) {
       // Check if profile exists, create if not (for OAuth users)
       const { data: existingProfile } = await supabase
         .from('profiles')
@@ -188,13 +95,8 @@ export async function GET(request: Request) {
         });
       }
 
-      // Accept invitation if present
-      if (inviteToken && data.user.email) {
-        await acceptInvitation(data.user.id, data.user.email, data.session.access_token);
-        return NextResponse.redirect(`${origin}/dashboard`);
-      }
-
-      return NextResponse.redirect(`${origin}${next}`);
+      // Redirect to dashboard - client-side will handle pending invitation
+      return NextResponse.redirect(`${origin}/dashboard`);
     }
 
     if (error) {

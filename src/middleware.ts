@@ -6,6 +6,7 @@ const protectedRoutes = [
   '/dashboard',
   '/assets',
   '/calendar',
+  '/my-trips',
   '/members',
   '/tiers',
   '/settings',

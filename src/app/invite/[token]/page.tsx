@@ -151,6 +151,9 @@ function InviteContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
 
+      // Store invitation token in localStorage as backup
+      localStorage.setItem('pendingInviteToken', token);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -204,6 +207,10 @@ function InviteContent() {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
 
+      // Store invitation token in localStorage for after email verification
+      // This is needed because Supabase overwrites redirect URL params
+      localStorage.setItem('pendingInviteToken', token);
+
       // Sign up with email and password
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: invitation.email,
@@ -213,7 +220,7 @@ function InviteContent() {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback?invite=${token}`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -232,6 +239,9 @@ function InviteContent() {
 
       // If we have a session, accept the invitation immediately
       if (signUpData.session) {
+        // Clear stored token since we're handling it now
+        localStorage.removeItem('pendingInviteToken');
+        
         setAccessToken(signUpData.session.access_token);
         
         // Update profile with name

@@ -247,6 +247,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchSubscription]);
 
+  // Check and accept pending invitation from localStorage
+  const checkPendingInvitation = useCallback(async (userId: string, userEmail: string, accessToken: string) => {
+    if (typeof window === 'undefined') return;
+    
+    const pendingToken = localStorage.getItem('pendingInviteToken');
+    if (!pendingToken) return;
+    
+    try {
+      console.log('Found pending invitation token, attempting to accept...');
+      
+      const response = await fetch(`/api/invitations/${pendingToken}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        console.log('Pending invitation accepted successfully');
+        // Clear the token
+        localStorage.removeItem('pendingInviteToken');
+        // Refresh profile to get new organization membership
+        await fetchProfileWithFetch(userId, accessToken);
+      } else {
+        const data = await response.json();
+        console.error('Failed to accept pending invitation:', data.error);
+        // Clear invalid token
+        localStorage.removeItem('pendingInviteToken');
+      }
+    } catch (error) {
+      console.error('Error accepting pending invitation:', error);
+      localStorage.removeItem('pendingInviteToken');
+    }
+  }, [fetchProfileWithFetch]);
+
   useEffect(() => {
     // Try to get session from cookies directly
     const cookieSession = getSessionFromCookies();
@@ -257,11 +293,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         access_token: cookieSession.accessToken,
         refresh_token: cookieSession.refreshToken,
       } as Session);
-      fetchProfileWithFetch(cookieSession.user.id, cookieSession.accessToken);
+      
+      // Fetch profile and then check for pending invitations
+      fetchProfileWithFetch(cookieSession.user.id, cookieSession.accessToken).then(() => {
+        // Check for pending invitation after profile is loaded
+        if (cookieSession.user.email) {
+          checkPendingInvitation(cookieSession.user.id, cookieSession.user.email, cookieSession.accessToken);
+        }
+      });
     } else {
       setIsLoading(false);
     }
-  }, [fetchProfileWithFetch]);
+  }, [fetchProfileWithFetch, checkPendingInvitation]);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -276,6 +319,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(data.session);
         setUser(data.user);
         await fetchProfileWithFetch(data.user.id, data.session.access_token);
+        
+        // Check for pending invitation after login
+        if (data.user.email) {
+          await checkPendingInvitation(data.user.id, data.user.email, data.session.access_token);
+        }
       }
 
       return { error: null };
@@ -360,7 +408,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setMemberships([]);
     setSubscription(null);
     localStorage.removeItem('currentOrganizationId');
-    router.push('/login');
+    // Use window.location for reliable redirect after clearing auth state
+    window.location.href = '/login';
   };
 
   const refreshProfile = async () => {
