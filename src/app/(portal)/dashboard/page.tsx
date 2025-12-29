@@ -131,7 +131,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-fade-in">
+    <div className="space-y-6 md:space-y-8 animate-fade-in overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -173,8 +173,8 @@ export default function DashboardPage() {
                   {mockStats.activeBookings}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-emerald-500" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
               </div>
             </div>
           </CardContent>
@@ -220,9 +220,9 @@ export default function DashboardPage() {
           const sectionInfo = SECTIONS[stat.section as keyof typeof SECTIONS];
           return (
             <Link key={stat.section} href={`/assets?section=${stat.section}`}>
-              <Card className="card-hover h-full">
+              <Card className="card-hover h-full overflow-hidden">
                 <CardContent className="p-3 sm:p-5">
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
                     <div
                       className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: `${sectionInfo?.color}20` }}
@@ -232,7 +232,7 @@ export default function DashboardPage() {
                         style={{ color: sectionInfo?.color }}
                       />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1 overflow-hidden">
                       <p className="text-xs sm:text-sm text-muted capitalize truncate">{t(`assets.section.${stat.section}`)}</p>
                       <div className="flex items-baseline gap-1 sm:gap-2">
                         <span className="text-lg sm:text-xl font-display font-bold text-white">
@@ -289,18 +289,18 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium text-white truncate">
                       {booking.assetName}
                     </p>
-                    <p className="text-xs text-muted">
+                    <p className="text-xs text-muted truncate">
                       {booking.userName} • {formatDate(booking.startDate)}
                     </p>
                   </div>
                   <div
                     className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium capitalize',
+                      'flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1 rounded-full text-xs font-medium capitalize flex-shrink-0',
                       getStatusColor(booking.status)
                     )}
                   >
-                    <StatusIcon className="w-3.5 h-3.5" />
-                    {t(`bookings.status.${booking.status}`)}
+                    <StatusIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    <span className="hidden sm:inline">{t(`bookings.status.${booking.status}`)}</span>
                   </div>
                 </div>
               );

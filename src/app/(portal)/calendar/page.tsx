@@ -981,7 +981,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in overflow-hidden">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -995,11 +995,11 @@ export default function CalendarPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 md:flex-wrap scrollbar-hide">
         <button
           onClick={() => setSelectedSection(null)}
           className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+            'px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0',
             selectedSection === null
               ? 'bg-gold-500 text-navy-950'
               : 'bg-surface text-muted hover:text-white'
@@ -1016,7 +1016,7 @@ export default function CalendarPage() {
               key={key}
               onClick={() => setSelectedSection(key)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap flex-shrink-0',
                 selectedSection === key
                   ? 'text-navy-950'
                   : 'bg-surface text-muted hover:text-white'
