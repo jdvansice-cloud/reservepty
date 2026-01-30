@@ -7,10 +7,10 @@
 // Supabase mocks
 export {
   createMockSupabaseClient,
-  mockSupabaseQuery,
-  mockSupabaseMutation,
-  mockSupabaseAuth,
-  resetSupabaseMocks,
+  createMockQueryBuilder,
+  mockSupabaseResponse,
+  mockSupabaseClient,
+  mockGetClient,
 } from './supabase';
 
 // Auth mocks
