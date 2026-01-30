@@ -21,6 +21,9 @@ import {
   Edit2,
   RotateCcw,
   AlertTriangle,
+  Users,
+  User,
+  Scale,
 } from 'lucide-react';
 
 interface Heliport {
@@ -58,6 +61,14 @@ interface FlightLeg {
   distanceNm: number;
 }
 
+interface Passenger {
+  id: string;
+  fullName: string;
+  idNumber: string;
+  idType: 'cedula' | 'passport';
+  weightKg: number;
+}
+
 interface HelicopterBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -77,6 +88,7 @@ export interface HelicopterBookingData {
   notes: string;
   startDatetime: string;
   endDatetime: string;
+  passengers: Passenger[];
   metadata: {
     tripType: 'taken' | 'pickup' | 'multileg';
     legs: {
@@ -90,6 +102,13 @@ export interface HelicopterBookingData {
     }[];
     totalDistanceNm: number;
     totalFlightMinutes: number;
+    passengers: {
+      fullName: string;
+      idType: 'cedula' | 'passport';
+      idNumber: string;
+      weightKg: number;
+    }[];
+    totalPassengerWeightKg: number;
   };
 }
 
@@ -160,7 +179,12 @@ export default function HelicopterBookingModal({
   const [arrivalSearch, setArrivalSearch] = useState('');
   const [showDepartureDropdown, setShowDepartureDropdown] = useState(false);
   const [showArrivalDropdown, setShowArrivalDropdown] = useState(false);
-  
+
+  // Passenger manifest state (required for Aeronáutica Civil de Panamá)
+  const [passengers, setPassengers] = useState<Passenger[]>([
+    { id: crypto.randomUUID(), fullName: '', idNumber: '', idType: 'cedula', weightKg: 0 }
+  ]);
+
   // Editable itinerary state
   const [editableLegs, setEditableLegs] = useState<FlightLeg[]>([]);
   const [isEditingItinerary, setIsEditingItinerary] = useState(false);
@@ -424,6 +448,8 @@ export default function HelicopterBookingModal({
       const routeStr = builtLegs.map(l => l.departure.icao_code || l.departure.icao_code).join(' → ') 
         + ' → ' + (lastLeg.arrival.icao_code || lastLeg.arrival.icao_code);
 
+      const totalPassengerWeight = passengers.reduce((sum, p) => sum + (p.weightKg || 0), 0);
+
       const data: HelicopterBookingData = {
         title: title || `Multi-leg: ${routeStr}`,
         tripType: 'multileg',
@@ -433,6 +459,7 @@ export default function HelicopterBookingModal({
         notes,
         startDatetime: firstLeg.departureTime.toISOString(),
         endDatetime: lastLeg.arrivalTime.toISOString(),
+        passengers,
         metadata: {
           tripType: 'multileg',
           legs: builtLegs.map(leg => ({
@@ -446,6 +473,13 @@ export default function HelicopterBookingModal({
           })),
           totalDistanceNm: totalDistance,
           totalFlightMinutes,
+          passengers: passengers.map(p => ({
+            fullName: p.fullName,
+            idType: p.idType,
+            idNumber: p.idNumber,
+            weightKg: p.weightKg,
+          })),
+          totalPassengerWeightKg: totalPassengerWeight,
         },
       };
 
@@ -458,6 +492,7 @@ export default function HelicopterBookingModal({
 
     const totalDistance = editableLegs.reduce((sum, leg) => sum + leg.distanceNm, 0);
     const totalFlightMinutes = editableLegs.reduce((sum, leg) => sum + leg.flightTimeMinutes, 0);
+    const totalPassengerWeight = passengers.reduce((sum, p) => sum + (p.weightKg || 0), 0);
 
     const firstLeg = editableLegs[0];
     const lastLeg = editableLegs[editableLegs.length - 1];
@@ -471,6 +506,7 @@ export default function HelicopterBookingModal({
       notes,
       startDatetime: firstLeg.departureTime.toISOString(),
       endDatetime: lastLeg.arrivalTime.toISOString(),
+      passengers,
       metadata: {
         tripType,
         legs: editableLegs.map(leg => ({
@@ -484,6 +520,13 @@ export default function HelicopterBookingModal({
         })),
         totalDistanceNm: totalDistance,
         totalFlightMinutes,
+        passengers: passengers.map(p => ({
+          fullName: p.fullName,
+          idType: p.idType,
+          idNumber: p.idNumber,
+          weightKg: p.weightKg,
+        })),
+        totalPassengerWeightKg: totalPassengerWeight,
       },
     };
 
@@ -1293,6 +1336,147 @@ export default function HelicopterBookingModal({
             </div>
           )}
 
+          {/* Passenger Manifest - Required by Aeronáutica Civil de Panamá */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-gold-500" />
+                <Label className="text-base font-medium">Passenger Manifest *</Label>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPassengers([...passengers, {
+                    id: crypto.randomUUID(),
+                    fullName: '',
+                    idNumber: '',
+                    idType: 'cedula',
+                    weightKg: 0
+                  }]);
+                }}
+                className="text-xs text-gold-500 hover:text-gold-400 flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                Add Passenger
+              </button>
+            </div>
+
+            <p className="text-xs text-muted">
+              Required by Aeronáutica Civil de Panamá for all flights.
+            </p>
+
+            <div className="space-y-3">
+              {passengers.map((passenger, index) => (
+                <div
+                  key={passenger.id}
+                  className="p-4 rounded-lg bg-surface border border-border space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted" />
+                      <span className="text-sm font-medium text-white">Passenger {index + 1}</span>
+                    </div>
+                    {passengers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPassengers(passengers.filter((_, i) => i !== index));
+                        }}
+                        className="p-1 rounded hover:bg-red-500/20 text-muted hover:text-red-400"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Full Name */}
+                  <div>
+                    <Label className="text-xs">Full Name (as on ID) *</Label>
+                    <Input
+                      placeholder="e.g., Juan Carlos Pérez García"
+                      value={passenger.fullName}
+                      onChange={(e) => {
+                        const newPassengers = [...passengers];
+                        newPassengers[index].fullName = e.target.value;
+                        setPassengers(newPassengers);
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  {/* ID Type and Number */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">ID Type *</Label>
+                      <select
+                        value={passenger.idType}
+                        onChange={(e) => {
+                          const newPassengers = [...passengers];
+                          newPassengers[index].idType = e.target.value as 'cedula' | 'passport';
+                          setPassengers(newPassengers);
+                        }}
+                        className="mt-1 w-full px-3 py-2 bg-navy-900 border border-border rounded-lg text-white text-sm focus:outline-none focus:border-gold-500"
+                      >
+                        <option value="cedula">Cédula</option>
+                        <option value="passport">Passport</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-xs">
+                        {passenger.idType === 'cedula' ? 'Cédula Number' : 'Passport Number'} *
+                      </Label>
+                      <Input
+                        placeholder={passenger.idType === 'cedula' ? 'e.g., 8-123-4567' : 'e.g., PA1234567'}
+                        value={passenger.idNumber}
+                        onChange={(e) => {
+                          const newPassengers = [...passengers];
+                          newPassengers[index].idNumber = e.target.value;
+                          setPassengers(newPassengers);
+                        }}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Weight */}
+                  <div>
+                    <Label className="text-xs flex items-center gap-1">
+                      <Scale className="w-3 h-3" />
+                      Weight (kg) *
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="300"
+                      placeholder="e.g., 75"
+                      value={passenger.weightKg || ''}
+                      onChange={(e) => {
+                        const newPassengers = [...passengers];
+                        newPassengers[index].weightKg = parseInt(e.target.value) || 0;
+                        setPassengers(newPassengers);
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Passenger Summary */}
+            {passengers.length > 0 && passengers.some(p => p.weightKg > 0) && (
+              <div className="p-3 rounded-lg bg-gold-500/10 border border-gold-500/20">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">
+                    {passengers.length} passenger{passengers.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="text-gold-500 font-medium">
+                    Total weight: {passengers.reduce((sum, p) => sum + (p.weightKg || 0), 0)} kg
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Title and Notes */}
           <div>
             <Label>Trip Title (optional)</Label>
@@ -1307,7 +1491,7 @@ export default function HelicopterBookingModal({
             <Label>Notes (optional)</Label>
             <textarea
               rows={2}
-              placeholder="Special requests, passenger info, etc."
+              placeholder="Special requests, catering, etc."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full px-4 py-2 bg-surface border border-border rounded-lg text-white placeholder:text-muted focus:outline-none focus:border-gold-500"
@@ -1319,12 +1503,14 @@ export default function HelicopterBookingModal({
             <Button variant="secondary" className="flex-1" onClick={onClose}>
               Cancel
             </Button>
-            <Button 
-              className="flex-1" 
+            <Button
+              className="flex-1"
               onClick={handleSubmit}
               disabled={
-                isSubmitting || 
-                (tripType === 'multileg' 
+                isSubmitting ||
+                // Validate passengers - at least one with all required fields
+                !passengers.every(p => p.fullName && p.idNumber && p.weightKg > 0) ||
+                (tripType === 'multileg'
                   ? !multiLegs.every(leg => leg.departureHeliport && leg.arrivalHeliport && leg.departureDate && leg.departureTime)
                   : (!editableLegs.length || !departureHeliport || !arrivalHeliport)
                 )
