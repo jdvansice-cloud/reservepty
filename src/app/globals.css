@@ -429,8 +429,12 @@
 }
 
 /* Prevent rubber-banding on iOS when at scroll boundaries */
-html, body {
-  overscroll-behavior: none;
+html {
+  overscroll-behavior-x: none;
+}
+
+body {
+  overscroll-behavior-x: none;
 }
 
 /* Smooth transitions for orientation changes */
