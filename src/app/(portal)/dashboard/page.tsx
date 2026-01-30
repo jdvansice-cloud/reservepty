@@ -6,11 +6,18 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn, SECTIONS, formatDate, formatRelativeTime } from '@/lib/utils';
+import { cn, SECTIONS, formatDate } from '@/lib/utils';
+import {
+  useDashboard,
+  useDashboardStats,
+  useSectionStats,
+  useRecentBookings,
+} from '@/lib/hooks/useDashboard';
 import {
   Plane,
   Ship,
   Home,
+  Navigation,
   Calendar,
   Users,
   TrendingUp,
@@ -19,73 +26,89 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Loader2,
+  RefreshCcw,
 } from 'lucide-react';
+import type { Database } from '@/types/database';
 
-const SECTION_ICONS: Record<string, React.ElementType> = {
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type AssetSection = Database['public']['Enums']['asset_section'];
+type ReservationStatus = Database['public']['Enums']['reservation_status'];
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const SECTION_ICONS: Record<AssetSection, React.ElementType> = {
   planes: Plane,
-  helicopters: Plane,
+  helicopters: Navigation,
   residences: Home,
   watercraft: Ship,
 };
 
-// Mock data for development
-const mockStats = {
-  totalAssets: 12,
-  activeBookings: 5,
-  totalMembers: 23,
-  thisMonthBookings: 18,
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+const getStatusColor = (status: ReservationStatus) => {
+  switch (status) {
+    case 'approved':
+      return 'text-emerald-400 bg-emerald-400/10';
+    case 'pending':
+      return 'text-amber-400 bg-amber-400/10';
+    case 'rejected':
+      return 'text-red-400 bg-red-400/10';
+    case 'canceled':
+      return 'text-stone-400 bg-stone-400/10';
+    default:
+      return 'text-muted bg-muted/10';
+  }
 };
 
-const mockSectionStats = [
-  { section: 'planes', count: 3, bookings: 8 },
-  { section: 'helicopters', count: 2, bookings: 3 },
-  { section: 'residences', count: 5, bookings: 12 },
-  { section: 'watercraft', count: 2, bookings: 4 },
-];
+const getStatusIcon = (status: ReservationStatus) => {
+  switch (status) {
+    case 'approved':
+      return CheckCircle2;
+    case 'pending':
+      return AlertCircle;
+    case 'rejected':
+    case 'canceled':
+      return XCircle;
+    default:
+      return Clock;
+  }
+};
 
-const mockRecentBookings = [
-  {
-    id: '1',
-    assetName: 'Gulfstream G650',
-    section: 'planes',
-    userName: 'John Smith',
-    startDate: new Date(Date.now() + 86400000 * 2),
-    endDate: new Date(Date.now() + 86400000 * 2 + 36000000),
-    status: 'approved',
-  },
-  {
-    id: '2',
-    assetName: 'Miami Beach Villa',
-    section: 'residences',
-    userName: 'Sarah Johnson',
-    startDate: new Date(Date.now() + 86400000 * 5),
-    endDate: new Date(Date.now() + 86400000 * 10),
-    status: 'pending',
-  },
-  {
-    id: '3',
-    assetName: 'Azimut 72',
-    section: 'watercraft',
-    userName: 'Michael Chen',
-    startDate: new Date(Date.now() + 86400000 * 7),
-    endDate: new Date(Date.now() + 86400000 * 9),
-    status: 'approved',
-  },
-  {
-    id: '4',
-    assetName: 'Bell 429',
-    section: 'helicopters',
-    userName: 'Emma Williams',
-    startDate: new Date(Date.now() - 86400000),
-    endDate: new Date(Date.now() - 86400000 + 14400000),
-    status: 'completed',
-  },
-];
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 export default function DashboardPage() {
-  const { profile, organization, membership } = useAuth();
+  const { profile } = useAuth();
   const { t, language } = useLanguage();
   const [greeting, setGreeting] = useState('');
+
+  // Fetch dashboard data
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useDashboardStats();
+
+  const {
+    data: sectionStats,
+    isLoading: sectionLoading,
+  } = useSectionStats();
+
+  const {
+    data: recentBookings,
+    isLoading: bookingsLoading,
+  } = useRecentBookings(5);
+
+  const isLoading = statsLoading || sectionLoading || bookingsLoading;
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -100,36 +123,6 @@ export default function DashboardPage() {
     }
   }, [language]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'text-emerald-400 bg-emerald-400/10';
-      case 'pending':
-        return 'text-amber-400 bg-amber-400/10';
-      case 'rejected':
-        return 'text-red-400 bg-red-400/10';
-      case 'completed':
-        return 'text-blue-400 bg-blue-400/10';
-      default:
-        return 'text-muted bg-muted/10';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return CheckCircle2;
-      case 'pending':
-        return AlertCircle;
-      case 'rejected':
-        return XCircle;
-      case 'completed':
-        return CheckCircle2;
-      default:
-        return Clock;
-    }
-  };
-
   return (
     <div className="space-y-6 md:space-y-8 animate-fade-in overflow-hidden">
       {/* Header */}
@@ -139,125 +132,136 @@ export default function DashboardPage() {
             {greeting}, {profile?.first_name || (language === 'es' ? 'usuario' : 'there')}
           </h1>
           <p className="text-sm sm:text-base text-muted mt-1">
-            {language === 'es' 
+            {language === 'es'
               ? 'Esto es lo que está pasando con tus activos hoy.'
               : "Here's what's happening with your assets today."}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetchStats()}
+          disabled={isLoading}
+          className="self-start sm:self-auto"
+        >
+          <RefreshCcw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
+          {language === 'es' ? 'Actualizar' : 'Refresh'}
+        </Button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <Card className="card-hover">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-muted">{t('dashboard.totalAssets')}</p>
-                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
-                  {mockStats.totalAssets}
-                </p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gold-500/10 flex items-center justify-center">
-                <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-gold-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-hover">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-muted">{t('dashboard.activeBookings')}</p>
-                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
-                  {mockStats.activeBookings}
-                </p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-hover">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-muted">{t('dashboard.totalMembers')}</p>
-                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
-                  {mockStats.totalMembers}
-                </p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="card-hover">
-          <CardContent className="p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-muted">{language === 'es' ? 'Este Mes' : 'This Month'}</p>
-                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
-                  {mockStats.thisMonthBookings}
-                </p>
-              </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCardItem
+          title={t('dashboard.totalAssets')}
+          value={stats?.totalAssets ?? 0}
+          icon={Plane}
+          color="gold"
+          isLoading={statsLoading}
+        />
+        <StatCardItem
+          title={t('dashboard.activeBookings')}
+          value={stats?.activeBookings ?? 0}
+          icon={Calendar}
+          color="emerald"
+          isLoading={statsLoading}
+        />
+        <StatCardItem
+          title={t('dashboard.totalMembers')}
+          value={stats?.totalMembers ?? 0}
+          icon={Users}
+          color="blue"
+          isLoading={statsLoading}
+        />
+        <StatCardItem
+          title={language === 'es' ? 'Este Mes' : 'This Month'}
+          value={stats?.monthlyBookings ?? 0}
+          icon={TrendingUp}
+          color="purple"
+          isLoading={statsLoading}
+          subtitle={
+            stats?.pendingApprovals && stats.pendingApprovals > 0
+              ? `${stats.pendingApprovals} ${language === 'es' ? 'pendientes' : 'pending'}`
+              : undefined
+          }
+        />
       </div>
 
       {/* Section Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {mockSectionStats.map((stat) => {
-          const Icon = SECTION_ICONS[stat.section];
-          const sectionInfo = SECTIONS[stat.section as keyof typeof SECTIONS];
-          return (
-            <Link key={stat.section} href={`/assets?section=${stat.section}`}>
-              <Card className="card-hover h-full overflow-hidden">
-                <CardContent className="p-3 sm:p-5">
-                  <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
-                    <div
-                      className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: `${sectionInfo?.color}20` }}
-                    >
-                      <Icon
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        style={{ color: sectionInfo?.color }}
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <p className="text-xs sm:text-sm text-muted capitalize truncate">{t(`assets.section.${stat.section}`)}</p>
-                      <div className="flex items-baseline gap-1 sm:gap-2">
-                        <span className="text-lg sm:text-xl font-display font-bold text-white">
-                          {stat.count}
-                        </span>
-                        <span className="text-[10px] sm:text-xs text-muted">{language === 'es' ? 'activos' : 'assets'}</span>
+        {sectionLoading ? (
+          // Loading skeleton
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-3 sm:p-5">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-surface" />
+                  <div className="flex-1">
+                    <div className="h-3 w-16 bg-surface rounded mb-2" />
+                    <div className="h-5 w-12 bg-surface rounded" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          sectionStats?.map((stat) => {
+            const Icon = SECTION_ICONS[stat.section];
+            const sectionInfo = SECTIONS[stat.section as keyof typeof SECTIONS];
+            return (
+              <Link key={stat.section} href={`/assets?section=${stat.section}`}>
+                <Card className="card-hover h-full overflow-hidden">
+                  <CardContent className="p-3 sm:p-5">
+                    <div className="flex items-center gap-2 sm:gap-3 overflow-hidden">
+                      <div
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${sectionInfo?.color}20` }}
+                      >
+                        <Icon
+                          className="w-4 h-4 sm:w-5 sm:h-5"
+                          style={{ color: sectionInfo?.color }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <p className="text-xs sm:text-sm text-muted capitalize truncate">
+                          {t(`assets.section.${stat.section}`)}
+                        </p>
+                        <div className="flex items-baseline gap-1 sm:gap-2">
+                          <span className="text-lg sm:text-xl font-display font-bold text-white">
+                            {stat.assetCount}
+                          </span>
+                          <span className="text-[10px] sm:text-xs text-muted">
+                            {language === 'es' ? 'activos' : 'assets'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-border">
-                    <p className="text-[10px] sm:text-xs text-muted truncate">
-                      <span className="text-white font-medium">{stat.bookings}</span> {language === 'es' ? 'reservas' : 'bookings'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+                    <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-border">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] sm:text-xs text-muted truncate">
+                          <span className="text-white font-medium">{stat.bookingCount}</span>{' '}
+                          {language === 'es' ? 'reservas' : 'bookings'}
+                        </p>
+                        {stat.utilizationRate > 0 && (
+                          <span className="text-[10px] sm:text-xs text-emerald-400 font-medium">
+                            {stat.utilizationRate}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })
+        )}
       </div>
 
-      {/* Recent Bookings - Full Width */}
+      {/* Recent Bookings */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-4 px-4 md:px-6">
-          <CardTitle className="text-base md:text-lg font-display">{language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}</CardTitle>
+          <CardTitle className="text-base md:text-lg font-display">
+            {language === 'es' ? 'Reservas Recientes' : 'Recent Bookings'}
+          </CardTitle>
           <Link href="/calendar">
             <Button variant="ghost" size="sm" className="text-xs md:text-sm">
               {language === 'es' ? 'Ver todo' : 'View all'}
@@ -267,47 +271,169 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border">
-            {mockRecentBookings.map((booking) => {
-              const Icon = SECTION_ICONS[booking.section];
-              const StatusIcon = getStatusIcon(booking.status);
-              const sectionInfo = SECTIONS[booking.section as keyof typeof SECTIONS];
-              return (
-                <div
-                  key={booking.id}
-                  className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 hover:bg-surface transition-colors"
-                >
-                  <div
-                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: `${sectionInfo?.color}20` }}
-                  >
-                    <Icon
-                      className="w-4 h-4 md:w-5 md:h-5"
-                      style={{ color: sectionInfo?.color }}
-                    />
+            {bookingsLoading ? (
+              // Loading skeleton
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 animate-pulse">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-surface" />
+                  <div className="flex-1">
+                    <div className="h-4 w-32 bg-surface rounded mb-2" />
+                    <div className="h-3 w-24 bg-surface rounded" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">
-                      {booking.assetName}
-                    </p>
-                    <p className="text-xs text-muted truncate">
-                      {booking.userName} • {formatDate(booking.startDate)}
-                    </p>
-                  </div>
-                  <div
-                    className={cn(
-                      'flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1 rounded-full text-xs font-medium capitalize flex-shrink-0',
-                      getStatusColor(booking.status)
-                    )}
-                  >
-                    <StatusIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                    <span className="hidden sm:inline">{t(`bookings.status.${booking.status}`)}</span>
-                  </div>
+                  <div className="h-6 w-16 bg-surface rounded-full" />
                 </div>
-              );
-            })}
+              ))
+            ) : recentBookings && recentBookings.length > 0 ? (
+              recentBookings.map((booking) => {
+                const Icon = SECTION_ICONS[booking.assetSection];
+                const StatusIcon = getStatusIcon(booking.status);
+                const sectionInfo = SECTIONS[booking.assetSection as keyof typeof SECTIONS];
+                return (
+                  <Link
+                    key={booking.id}
+                    href={`/calendar?reservation=${booking.id}`}
+                    className="block"
+                  >
+                    <div className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 md:gap-4 hover:bg-surface transition-colors">
+                      <div
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: `${sectionInfo?.color}20` }}
+                      >
+                        <Icon
+                          className="w-4 h-4 md:w-5 md:h-5"
+                          style={{ color: sectionInfo?.color }}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {booking.title || booking.assetName}
+                        </p>
+                        <p className="text-xs text-muted truncate">
+                          {booking.userName} • {formatDate(new Date(booking.startDatetime))}
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          'flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-1 rounded-full text-xs font-medium capitalize flex-shrink-0',
+                          getStatusColor(booking.status)
+                        )}
+                      >
+                        <StatusIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                        <span className="hidden sm:inline">{t(`bookings.status.${booking.status}`)}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })
+            ) : (
+              // Empty state
+              <div className="px-4 md:px-6 py-8 text-center">
+                <Clock className="w-10 h-10 mx-auto text-muted/50 mb-3" />
+                <p className="text-sm text-muted">
+                  {language === 'es' ? 'No hay reservas recientes' : 'No recent bookings'}
+                </p>
+                <Link href="/calendar">
+                  <Button variant="outline" size="sm" className="mt-3">
+                    {language === 'es' ? 'Crear reserva' : 'Create booking'}
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {/* Pending Approvals Alert (for admins) */}
+      {stats?.pendingApprovals && stats.pendingApprovals > 0 && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertCircle className="w-5 h-5 text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-white">
+                  {stats.pendingApprovals}{' '}
+                  {language === 'es'
+                    ? 'reservas pendientes de aprobación'
+                    : 'bookings awaiting approval'}
+                </p>
+                <p className="text-sm text-muted mt-0.5">
+                  {language === 'es'
+                    ? 'Revisa y aprueba las solicitudes de reserva'
+                    : 'Review and approve booking requests'}
+                </p>
+              </div>
+              <Link href="/calendar?status=pending">
+                <Button size="sm" className="flex-shrink-0">
+                  {language === 'es' ? 'Revisar' : 'Review'}
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
+  );
+}
+
+// ============================================================================
+// STAT CARD ITEM
+// ============================================================================
+
+interface StatCardItemProps {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  color: 'gold' | 'emerald' | 'blue' | 'purple';
+  isLoading?: boolean;
+  subtitle?: string;
+}
+
+function StatCardItem({
+  title,
+  value,
+  icon: Icon,
+  color,
+  isLoading,
+  subtitle,
+}: StatCardItemProps) {
+  const colorClasses = {
+    gold: 'bg-gold-500/10 text-gold-500',
+    emerald: 'bg-emerald-500/10 text-emerald-500',
+    blue: 'bg-blue-500/10 text-blue-500',
+    purple: 'bg-purple-500/10 text-purple-500',
+  };
+
+  return (
+    <Card className="card-hover">
+      <CardContent className="p-4 md:p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs sm:text-sm text-muted">{title}</p>
+            {isLoading ? (
+              <div className="h-8 w-16 bg-surface rounded animate-pulse mt-1" />
+            ) : (
+              <>
+                <p className="text-2xl sm:text-3xl font-display font-bold text-white mt-1">
+                  {value.toLocaleString()}
+                </p>
+                {subtitle && (
+                  <p className="text-xs text-amber-400 mt-0.5">{subtitle}</p>
+                )}
+              </>
+            )}
+          </div>
+          <div
+            className={cn(
+              'w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center',
+              colorClasses[color]
+            )}
+          >
+            <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
